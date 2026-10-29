@@ -60,3 +60,18 @@ export function tsIso(ts) {
   if (ts.toDate) return ts.toDate().toISOString();
   return '';
 }
+
+// Pecahkan tempoh kepada baldi harian atau mingguan (minggu bermula Isnin) untuk graf trend.
+export function buckets(from, to, gran = 'day') {
+  const out = [];
+  if (!from || !to || to < from) return out;
+  if (gran === 'week') {
+    for (let s = startOfWeek(from); s <= to; s = addDays(s, 7)) {
+      const e = addDays(s, 6);
+      out.push({ key: s, from: s < from ? from : s, to: e > to ? to : e, label: fmtDate(s) });
+    }
+    return out;
+  }
+  for (let d = from; d <= to; d = addDays(d, 1)) out.push({ key: d, from: d, to: d, label: fmtDate(d) });
+  return out;
+}

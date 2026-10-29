@@ -92,7 +92,10 @@ function ReviewBlock({ content }) {
         <div>
           <div className="row gap-sm wrap" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
             <span className="muted small">{latest ? `Angka terkini ${fmtDate(latest.date)}, diisi oleh ${latest.enteredByName}` : 'Belum ada data prestasi. Angka diisi manual dari app platform.'}</span>
-            {can(profile, 'metrics.enter') && <Button size="sm" icon={BarChart3} onClick={() => setMetricsOpen(true)}>Rekod prestasi</Button>}
+            <span className="row gap-sm">
+              {latest && <Link to={`/analytics?tab=engagement&content=${content.id}`} className="btn btn-ghost btn-sm">Analisa penuh</Link>}
+              {can(profile, 'metrics.enter') && <Button size="sm" icon={BarChart3} onClick={() => setMetricsOpen(true)}>Rekod prestasi</Button>}
+            </span>
           </div>
           <ErrorBox error={metrics.error} />
           {latest && (

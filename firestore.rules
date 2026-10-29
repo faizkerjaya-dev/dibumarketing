@@ -111,6 +111,28 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Sasaran KPI bulanan (ID 'YYYY-MM'). Semua staf aktif boleh baca supaya Content Creator nampak KPI sendiri.
+    match /kpiTargets/{id} {
+      allow read: if isActive();
+      allow write: if managers();
+    }
+
+    // Rekod bilangan pengikut akaun jenama (diisi manual).
+    match /accountStats/{id} {
+      allow read: if staffReader();
+      allow create, update: if hasAny(['admin', 'marketing_manager', 'content_manager', 'creator_manager']);
+      allow delete: if isAdmin();
+    }
+
+    // Link umum dalam Pustaka link (tidak berkait dengan content tertentu).
+    match /libraryLinks/{id} {
+      allow read: if staffReader();
+      allow create: if hasAny(['admin', 'marketing_manager', 'content_manager', 'creator_manager'])
+        && request.resource.data.authorUid == request.auth.uid;
+      allow update: if false;
+      allow delete: if isAdmin() || (isActive() && resource.data.authorUid == request.auth.uid);
+    }
+
     match /activity/{id} {
       allow read: if staffReader();
       allow create: if isActive() && request.resource.data.actorUid == request.auth.uid;

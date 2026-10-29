@@ -9,6 +9,7 @@ import { log } from './log';
 import { AppError } from './errors';
 import { nowIso, today, addDays, parseDate, fmtDate } from './dates';
 import { uid, TASK_STATUSES, TASK_ROLES, REVIEW_OUTCOMES, findOpt } from './constants';
+import { statusForStage } from './statuses';
 
 const taskStatusLabel = (k) => findOpt(TASK_STATUSES, k).label;
 
@@ -480,4 +481,113 @@ export async function deliverableAction(d, action, text, profile) {
   await updateById('deliverables', d.id, patch, profile);
   await addComment({ targetType: 'deliverable', targetId: d.id, thread: 'revision', kind: a.kind, text: text || a.label }, profile);
   await logActivity(profile, { type: `deliverable_${action}`, message: `${a.label}: ${d.creatorName} · ${d.type} (${d.campaignName})`, refType: 'campaign', refId: d.campaignId });
+}
+
+/* ---------------- KPI, statistik akaun, pustaka link ---------------- */
+
+// Sasaran KPI bulanan. ID dokumen = 'YYYY-MM'. Nilai kosong disimpan sebagai null (tiada sasaran).
+export async function saveKpiTargets(key, t, profile) {
+  const clean = (o) => Object.fromEntries(Object.entries(o || {}).map(([k, v]) => [k, v === '' || v == null ? null : Number(v)]));
+  const staff = Object.fromEntries(Object.entries(t.staff || {}).map(([id, v]) => [id, clean(v)]).filter(([, v]) => Object.values(v).some((x) => x != null)));
+  await setById('kpiTargets', key, { overall: clean(t.overall), staffDefault: clean(t.staffDefault), staff, updatedBy: by(profile) }, false);
+  await logActivity(profile, { type: 'kpi_targets', message: `${by(profile)} kemas kini sasaran KPI ${key}`, refType: 'kpi', refId: key });
+}
+
+// Rekod pengikut akaun jenama. ID tetap per tarikh+platform+akaun, jadi rekod semula hari yang sama
+// akan MENGGANTI angka lama (tiada rekod berganda).
+export async function saveAccountStats({ date, account, values, notes }, profile) {
+  if (!date) throw new AppError('Pilih tarikh.');
+  const rows = Object.entries(values).filter(([, v]) => v !== '' && v != null);
+  if (!rows.length) throw new AppError('Isi bilangan pengikut sekurang-kurangnya satu platform.');
+  const acc = (account || '').trim();
+  await commitInChunks(rows, (batch, [platform, followers]) => {
+    const id = `${date}__${platform}__${acc}`.replace(/[^\w-]+/g, '_');
+    batch.set(doc(db, 'accountStats', id), {
+      date, platform, account: acc, followers: Number(followers), notes: notes || '',
+      enteredByName: by(profile), enteredByUid: profile?.uid || null, updatedAt: serverTimestamp(),
+    });
+  });
+  return rows.length;
+}
+
+export async function addLibraryLink(link, { profile, contentById }) {
+  if (!/^https?:\/\//i.test(link.url || '')) throw new AppError('Link mesti bermula dengan http:// atau https://');
+  if (link.contentId) {
+    const content = contentById[link.contentId];
+    if (!content) throw new AppError('Content tidak dijumpai.');
+    return addLink(content, link, profile);
+  }
+  return createDoc('libraryLinks', {
+    label: (link.label || link.url).trim(), url: link.url.trim(), category: link.category || '', campaignId: link.campaignId || '',
+    notes: link.notes || '', authorUid: profile.uid, addedBy: by(profile), addedAt: nowIso(),
+  }, profile);
+}
+
+/* ---------------- Kelulusan pukal ---------------- */
+
+// Hantar notifikasi berkumpul: seorang staf dapat SATU notifikasi walaupun 20 content diluluskan.
+async function notifyGrouped(list, staffById, exceptUid, make) {
+  const byUid = {};
+  list.forEach((c) => {
+    (c.assigneeStaffIds?.length ? c.assigneeStaffIds : [c.ownerStaffId]).forEach((sid) => {
+      const u = staffById[sid]?.userUid;
+      if (u && u !== exceptUid) (byUid[u] = byUid[u] || new Set()).add(c);
+    });
+  });
+  const rows = Object.entries(byUid);
+  await commitInChunks(rows, (batch, [toUid, set]) => {
+    batch.set(doc(collection(db, 'notifications')), { toUid, ...make([...set]), read: false, createdAt: serverTimestamp(), createdAtIso: nowIso() });
+  });
+}
+
+// Luluskan banyak content sekaligus → status pertama peringkat "Sedia terbit".
+// Content yang belum cukup syarat (contoh tiada tarikh terbit) dilangkau dan dipulangkan dalam `skipped`.
+export async function bulkApprove(list, { config, profile, staffById, missingFor }) {
+  const target = statusForStage(config, 'ready');
+  if (!target) throw new AppError('Tiada status peringkat "Sedia terbit" dalam Tetapan › Status.');
+  const ok = []; const skipped = [];
+  list.forEach((c) => (missingFor(c, target).length ? skipped.push(c) : ok.push(c)));
+  const at = nowIso();
+  const approval = { outcome: 'approved', byName: by(profile), byUid: profile.uid, at };
+  await commitInChunks(ok, (batch, c) => {
+    batch.update(doc(db, 'content', c.id), { status: target, approval, updatedAt: serverTimestamp(), updatedBy: by(profile) });
+    batch.set(doc(collection(db, 'comments')), {
+      targetType: 'content', targetId: c.id, thread: 'general', kind: 'comment', outcome: null,
+      text: `✓ Diluluskan oleh ${by(profile)}`, authorUid: profile.uid, authorName: by(profile), visibleUids: c.assigneeUids || [],
+      createdAtIso: at, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: by(profile), updatedBy: by(profile),
+    });
+  });
+  if (ok.length) {
+    await notifyGrouped(ok, staffById, profile.uid, (items) => ({
+      title: items.length === 1 ? `“${items[0].title}” diluluskan` : `${items.length} content anda diluluskan`,
+      body: items.slice(0, 3).map((c) => c.title).join(', ') + (items.length > 3 ? '…' : ''),
+      link: items.length === 1 ? `/content/${items[0].id}` : '/my-tasks',
+    }));
+    await logActivity(profile, { type: 'content_bulk_approved', message: `${by(profile)} luluskan ${ok.length} content`, refType: 'content', refId: ok.length === 1 ? ok[0].id : null });
+  }
+  return { approved: ok.length, skipped };
+}
+
+// Pulangkan untuk pembetulan → status pertama peringkat "Produksi", dengan nota yang sama untuk semua.
+export async function bulkReturn(list, note, { config, profile, staffById }) {
+  const text = (note || '').trim();
+  if (!text) throw new AppError('Tulis apa yang perlu dibetulkan.');
+  const target = statusForStage(config, 'production');
+  const at = nowIso();
+  const approval = { outcome: 'returned', note: text, byName: by(profile), byUid: profile.uid, at };
+  await commitInChunks(list, (batch, c) => {
+    batch.update(doc(db, 'content', c.id), { status: target, approval, updatedAt: serverTimestamp(), updatedBy: by(profile) });
+    batch.set(doc(collection(db, 'comments')), {
+      targetType: 'content', targetId: c.id, thread: 'general', kind: 'comment', outcome: null,
+      text: `↩ Perlu pembetulan: ${text}`, authorUid: profile.uid, authorName: by(profile), visibleUids: c.assigneeUids || [],
+      createdAtIso: at, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: by(profile), updatedBy: by(profile),
+    });
+  });
+  await notifyGrouped(list, staffById, profile.uid, (items) => ({
+    title: items.length === 1 ? `“${items[0].title}” perlu pembetulan` : `${items.length} content anda perlu pembetulan`,
+    body: text.slice(0, 140),
+    link: items.length === 1 ? `/content/${items[0].id}` : '/my-tasks',
+  }));
+  await logActivity(profile, { type: 'content_bulk_returned', message: `${by(profile)} pulangkan ${list.length} content untuk pembetulan`, refType: 'content', refId: list.length === 1 ? list[0].id : null });
+  return list.length;
 }

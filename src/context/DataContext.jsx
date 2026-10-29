@@ -7,6 +7,7 @@ import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 import { isCreatorOnly } from '../lib/permissions';
 import { log } from '../lib/log';
+import { staffColorMap } from '../lib/colors';
 
 const DataContext = createContext(null);
 const NAMES = ['content', 'tasks', 'staff', 'campaigns', 'creators', 'campaignCreators', 'deliverables'];
@@ -61,6 +62,7 @@ export function DataProvider({ children }) {
       campaignById: byId(data.campaigns),
       creatorById: byId(data.creators),
       myStaff: data.staff.find((s) => s.id === profile?.staffId) || null,
+      staffColor: staffColorMap(data.staff),
     };
   }, [data, loading, errors, profile?.staffId]);
 

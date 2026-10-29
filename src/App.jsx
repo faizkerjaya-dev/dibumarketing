@@ -28,6 +28,8 @@ import Analytics from './pages/Analytics';
 import SettingsPage from './pages/Settings';
 import MyTasks from './pages/MyTasks';
 import Notifications from './pages/Notifications';
+import Approvals from './pages/Approvals';
+import KpiPage from './pages/Kpi';
 
 function NotFound() {
   return (
@@ -128,6 +130,8 @@ function Gate() {
             <Route path="/deliverables" element={<Guard><Deliverables /></Guard>} />
             <Route path="/library" element={<Guard><Library /></Guard>} />
             <Route path="/analytics" element={<Guard><Analytics /></Guard>} />
+            <Route path="/approvals" element={<Guard><Approvals /></Guard>} />
+            <Route path="/kpi" element={<Guard><KpiPage /></Guard>} />
             <Route path="/settings" element={<Guard><SettingsPage /></Guard>} />
             <Route path="*" element={<NotFound />} />
           </Route>

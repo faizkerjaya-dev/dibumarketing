@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigContext';
 import { useQuery } from '../hooks/useFirestore';
 import { stageOf, isArchived } from '../lib/statuses';
+import { can } from '../lib/permissions';
 import { DELIVERABLE_DONE, money, findOpt, TASK_ROLES } from '../lib/constants';
 import { today, monthStart, monthEnd, monthLabel, monthShort, inRange, addDays, fmtDate, parseDate, relDue, fmtDateTime } from '../lib/dates';
 import { staffWorkload, BANDS } from '../lib/workload';
@@ -47,6 +48,7 @@ export default function Dashboard() {
       published: at('published').length,
       production: at('production').length,
       review: at('review').length,
+      reviewAll: real.filter((c) => stageOf(config, c.status) === 'review').length,
       overdue: overdueIds.size,
       campaigns: d.campaigns.filter((c) => c.status === 'active'),
       creatorsActive: d.creators.filter((c) => ['active', 'confirmed'].includes(c.status)).length,
@@ -86,6 +88,13 @@ export default function Dashboard() {
   return (
     <div className="page">
       <PageHeader title={`Hai, ${(profile.name || '').split(' ')[0] || 'anda'}`} crumb={`Ringkasan ${monthLabel(now.getFullYear(), now.getMonth())}`} />
+      {can(profile, 'content.approve') && s.reviewAll > 0 && (
+        <div className="warnbox row" style={{ alignItems: 'center' }}>
+          <div><strong>{s.reviewAll} content menunggu kelulusan anda</strong><span>Luluskan sekaligus ikut hari atau minggu.</span></div>
+          <span className="grow" />
+          <Link to="/approvals" className="btn btn-primary btn-sm">Buka Kelulusan</Link>
+        </div>
+      )}
       <div className="stats">
         <Stat label="Content dirancang" value={s.month.length} hint={s.slots ? `${s.slots} slot belum ada tajuk` : 'Tarikh terbit bulan ini'} />
         <Stat label="Sudah terbit" value={s.published} hint={s.month.length ? `${Math.round((s.published / s.month.length) * 100)}% daripada rancangan` : '—'} />

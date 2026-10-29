@@ -1,6 +1,6 @@
 // Laporan: content, kempen, creator dan staf. Semua angka dari rekod sebenar; data tiada dipaparkan sebagai "—".
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { collection } from 'firebase/firestore';
 import { Download } from 'lucide-react';
 import { db } from '../firebase';
@@ -15,13 +15,18 @@ import { downloadCsv } from '../lib/csv';
 import { PageHeader, Card, Tabs, Button, Field, Input, Select, Stat, Loading, ErrorBox, Empty } from '../components/ui';
 import { ReviewPill } from '../components/pills';
 import { campaignStats } from './Campaigns';
+import FollowersReport from './reports/FollowersReport';
+import EngagementReport from './reports/EngagementReport';
 
 export default function Analytics() {
   const data = useData();
   const { content, campaigns, creators, staff, tasks, deliverables, campaignCreators, ready } = data;
   const config = useConfig();
   const now = new Date();
-  const [tab, setTab] = useState('content');
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') || 'content';
+  const setTab = (t) => setParams({ tab: t }, { replace: true });
+  const statsQ = useQuery(useMemo(() => collection(db, 'accountStats'), []), []);
   const [f, setF] = useState({ from: monthStart(now.getFullYear(), now.getMonth()), to: monthEnd(now.getFullYear(), now.getMonth()), platform: '', campaignId: '', pillar: '', ownerStaffId: '', creatorId: '' });
   const mq = useMemo(() => collection(db, 'metrics'), []);
   const metrics = useQuery(mq, [mq]);
@@ -95,7 +100,10 @@ export default function Analytics() {
   return (
     <div className="page">
       <PageHeader title="Laporan" />
-      <Card>
+      <Tabs value={tab} onChange={setTab} tabs={[{ key: 'content', label: 'Content' }, { key: 'followers', label: 'Pengikut & trend' }, { key: 'engagement', label: 'Analisa content' }, { key: 'campaigns', label: 'Kempen' }, { key: 'creators', label: 'Creator' }, { key: 'staff', label: 'Staf' }]} />
+      {tab === 'followers' && <FollowersReport stats={statsQ.data} metricsLatest={latest} error={statsQ.error} />}
+      {tab === 'engagement' && <EngagementReport metrics={metrics.data} latest={latest} contentId={params.get('content')} onPick={(id) => setParams(id ? { tab: 'engagement', content: id } : { tab: 'engagement' }, { replace: true })} />}
+      {!['followers', 'engagement'].includes(tab) && <Card>
         <div className="grid-3">
           <Field label="Dari"><Input type="date" value={f.from} onChange={set('from')} /></Field>
           <Field label="Hingga"><Input type="date" value={f.to} onChange={set('to')} /></Field>
@@ -105,10 +113,9 @@ export default function Analytics() {
           <Field label="Pemilik content"><Select value={f.ownerStaffId} onChange={set('ownerStaffId')} options={staff.map((s) => ({ value: s.id, label: s.name }))} placeholder="Semua" /></Field>
           <Field label="Creator"><Select value={f.creatorId} onChange={set('creatorId')} options={creators.map((c) => ({ value: c.id, label: c.name }))} placeholder="Semua" /></Field>
         </div>
-      </Card>
+      </Card>}
       {metrics.loading && <Loading text="Memuatkan data prestasi…" />}
       <ErrorBox error={metrics.error} />
-      <Tabs value={tab} onChange={setTab} tabs={[{ key: 'content', label: 'Content' }, { key: 'campaigns', label: 'Kempen' }, { key: 'creators', label: 'Creator' }, { key: 'staff', label: 'Staf' }]} />
 
       {tab === 'content' && <>
         <div className="stats stats-4">
@@ -126,7 +133,7 @@ export default function Analytics() {
             <div className="table-wrap"><table className="table" style={{ minWidth: 820 }}>
               <thead><tr><th>Content</th><th>Platform</th><th>Terbit</th><th className="num">Tontonan</th><th className="num">Engagement</th><th className="num">Kadar eng.</th><th>Semakan</th></tr></thead>
               <tbody>{contentRows.map(({ c, m }) => (
-                <tr key={c.id}><td><Link to={`/content/${c.id}?tab=review`}>{c.title}</Link><div className="small muted">{c.code} · {c.ownerName}</div></td><td>{c.platform}</td><td>{fmtDate(c.publishedDate || c.publishDate)}</td>
+                <tr key={c.id}><td><Link to={`/analytics?tab=engagement&content=${c.id}`} title="Analisa engagement">{c.title}</Link><div className="small muted">{c.code} · {c.ownerName}</div></td><td>{c.platform}</td><td>{fmtDate(c.publishedDate || c.publishDate)}</td>
                   <td className="num">{m ? num(m.views) : '—'}</td><td className="num">{m ? num(engagement(m)) : '—'}</td><td className="num">{pct(engagementRate(m))}</td><td><ReviewPill review={c.review} showNone /></td></tr>
               ))}</tbody>
             </table></div>

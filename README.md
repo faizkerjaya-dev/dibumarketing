@@ -190,3 +190,23 @@ Mula di **Tetapan › Semakan sistem**: status setiap koleksi data, ujian kebena
 - Semua teks antara muka dalam Bahasa Malaysia, termasuk tarikh (contoh: Sel, 27 Okt).
 - Butang Log keluar di sidebar kini kelihatan; sidebar kecil dipaparkan kemas.
 - Dashboard, kalendar, halaman content dan kempen disusun semula supaya lebih kemas.
+
+## 13. Ciri baharu v3.2
+
+| Ciri | Di mana | Siapa |
+|---|---|---|
+| Kalendar ringkas: setiap hari tunjuk jumlah content + jalur warna. Klik hari untuk popup senarai (pemilik, jenis, platform, status) dan tambah cepat | Kalendar | Semua |
+| Warna ikut Status / Jenis content / Pemilik. Warna staf boleh dipilih dalam Pasukan › Edit staf | Kalendar | Semua |
+| KPI keseluruhan dan KPI individu bulanan, dengan penanda "sepatutnya sudah sampai sini" | KPI | Lihat: pengurus. Tetapkan sasaran: Admin, Marketing Manager |
+| KPI saya | Hari ini / Tugasan saya | Staf yang dipautkan ke profil staf |
+| Rekod bilangan pengikut (manual) dan trend harian / mingguan, satu graf setiap platform | Laporan › Pengikut & trend | Rekod: Admin, Marketing, Content & Creator Manager |
+| Trend content terbit, tontonan dan kadar engagement | Laporan › Pengikut & trend | Pengurus |
+| Analisa engagement satu content: pecahan interaksi, sejarah rekod, perbandingan dengan purata platform, kedudukan | Laporan › Analisa content | Pengurus |
+| Kelulusan pukal ikut hari / minggu: Luluskan atau Minta pembetulan (dengan nota) | Kelulusan | Admin, Marketing Manager |
+| Papan kerja mod Fokus: hari ini sahaja; bila semua terbit, auto tukar ke hari seterusnya. Content lewat disorok di belakang butang | Papan kerja | Pengurus |
+| Tambah link terus dari Pustaka link, dipautkan ke content atau sebagai link umum | Pustaka link | Admin, Marketing, Content & Creator Manager |
+
+**Koleksi Firestore baharu:** `kpiTargets` (ID `YYYY-MM`), `accountStats` (ID `tarikh__platform__akaun`), `libraryLinks`.
+**Wajib selepas deploy:** tampal semula `firestore.rules` dalam Firebase Console dan Publish. Tanpa ini halaman KPI, Pengikut dan link umum akan papar "Akses ditolak".
+
+**Nota kelulusan:** Luluskan → status pertama peringkat *Sedia terbit*. Content tanpa tarikh terbit atau pemilik akan dilangkau (syarat sama seperti Papan kerja). Minta pembetulan → status pertama peringkat *Produksi*, nota disimpan dalam Catatan pasukan dan dihantar sebagai notifikasi (satu notifikasi bagi setiap staf, bukan satu setiap content).

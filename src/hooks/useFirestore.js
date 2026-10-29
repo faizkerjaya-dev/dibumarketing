@@ -24,3 +24,19 @@ export function useQuery(q, deps = []) {
   }, deps);
   return state;
 }
+
+// Dengar satu dokumen. ref mesti dibina dalam useMemo; key = nilai yang menukar dokumen.
+export function useDoc(ref, key) {
+  const [state, setState] = useState({ data: null, loading: true, error: null });
+  useEffect(() => {
+    if (!ref) { setState({ data: null, loading: false, error: null }); return undefined; }
+    setState({ data: null, loading: true, error: null });
+    return onSnapshot(
+      ref,
+      (snap) => setState({ data: snap.exists() ? snap.data() : null, loading: false, error: null }),
+      (error) => { log.error('dokumen gagal dibaca', error); setState({ data: null, loading: false, error }); },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return state;
+}

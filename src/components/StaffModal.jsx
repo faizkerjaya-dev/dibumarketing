@@ -8,6 +8,7 @@ import { createDoc, updateById } from '../lib/db';
 import { AppError } from '../lib/errors';
 import { STAFF_STATUSES, uid } from '../lib/constants';
 import { Modal, Button, Field, Input, Select, Textarea, MultiChips } from './ui';
+import { PALETTE } from '../lib/colors';
 
 const SKILLS = ['Script', 'Shooting', 'Editing', 'Design', 'Caption', 'Publishing', 'Live hosting', 'Creator outreach'];
 
@@ -34,6 +35,7 @@ export default function StaffModal({ open, onClose, staff }) {
         skills: f.skills || [], responsibilities: f.responsibilities || '', startDate: f.startDate || '',
         weeklyCapacity: Number(f.weeklyCapacity) || 0, monthlyCapacity: Number(f.monthlyCapacity) || 0,
         unavailable: (f.unavailable || []).filter((u) => u.from && u.to), notes: f.notes || '',
+        color: Number.isInteger(f.color) ? f.color : null,
       };
       if (staff) await updateById('staff', staff.id, data, profile);
       else await createDoc('staff', { ...data, userUid: null }, profile);
@@ -54,6 +56,13 @@ export default function StaffModal({ open, onClose, staff }) {
         <Field label="Kapasiti mingguan (jam)"><Input type="number" min="0" value={f.weeklyCapacity ?? ''} onChange={set('weeklyCapacity')} /></Field>
         <Field label="Kapasiti bulanan (jam)"><Input type="number" min="0" value={f.monthlyCapacity ?? ''} onChange={set('monthlyCapacity')} /></Field>
         <Field label="Kemahiran" full group><MultiChips options={SKILLS} value={f.skills || []} onChange={(skills) => setF((x) => ({ ...x, skills }))} allowNew /></Field>
+        <Field label="Warna dalam kalendar" full group hint="Untuk bezakan pemilik content dalam kalendar. Kosongkan untuk pilihan automatik.">
+          <div className="chips">
+            {PALETTE.map((c, i) => (
+              <button key={c} type="button" className={`swatch${f.color === i ? ' on' : ''}`} style={{ background: c }} aria-label={`Warna ${i + 1}`} aria-pressed={f.color === i} onClick={() => setF((x) => ({ ...x, color: x.color === i ? null : i }))} />
+            ))}
+          </div>
+        </Field>
         <Field label="Tanggungjawab" full><Textarea value={f.responsibilities || ''} onChange={set('responsibilities')} rows={2} /></Field>
       </div>
       <datalist id="job-titles">{['Marketing Manager', 'Content Manager', 'Content Creator', 'Scriptwriter', 'Videographer', 'Video Editor', 'Designer', 'Social Media Manager', 'Affiliate Manager'].map((t) => <option key={t} value={t} />)}</datalist>

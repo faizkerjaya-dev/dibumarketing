@@ -13,6 +13,7 @@ import { statusList, statusForStage, findStatus } from '../lib/statuses';
 import { missingForStatus, FIELD_LABELS } from '../lib/workflow';
 import { AppError } from '../lib/errors';
 import { TASK_ROLES, PRIORITIES } from '../lib/constants';
+import { typeColor } from '../lib/colors';
 import { today } from '../lib/dates';
 import { Button, Field, Input, Select, Textarea } from './ui';
 
@@ -46,6 +47,7 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
     setF({
       title: base.title || '',
       platform: base.platform || preset.platform || last.platform || config.platforms[0] || '',
+      type: base.type || last.type || '',
       publishDate: base.publishDate || preset.date || today(),
       publishTime: base.publishTime || '',
       ownerStaffId: base.ownerStaffId || preset.ownerStaffId || last.ownerStaffId || profile.staffId || '',
@@ -53,7 +55,6 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
       product: base.product || '',
       campaignId: base.campaignId || preset.campaignId || '',
       priority: base.priority || 'medium',
-      type: base.type || '',
       publishAccount: base.publishAccount || '',
       status: base.status || preset.status || statusForStage(config, 'idea'),
       brief: { ...EMPTY_BRIEF, ...(base.brief || {}) },
@@ -93,7 +94,7 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
       if (task.staffId) {
         await saveTask({ ...task, contentId: id, priority: f.priority, description: f.brief.topic || '' }, { profile, staffById, contentById });
       }
-      writeLast({ platform: f.platform, ownerStaffId: f.ownerStaffId });
+      writeLast({ platform: f.platform, ownerStaffId: f.ownerStaffId, type: f.type });
       return id;
     }, content ? 'Content dikemas kini' : 'Content ditambah');
     setBusy(false);
@@ -144,6 +145,16 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
             </div>
           </Field>
 
+          <Field label="Jenis content" group>
+            <div className="chips">
+              {(config.contentTypes || []).map((t) => (
+                <button key={t} type="button" className={`chip${f.type === t ? ' on' : ''}`} onClick={() => setF((x) => ({ ...x, type: x.type === t ? '' : t }))}>
+                  <span className="dot" style={{ background: typeColor(config, t), marginRight: 6 }} />{t}
+                </button>
+              ))}
+            </div>
+          </Field>
+
           <Field label="Pemilik content"><Select value={f.ownerStaffId} onChange={set('ownerStaffId')} options={staffOpts} placeholder="Belum ditetapkan" /></Field>
 
           {mode === 'full' && (
@@ -187,7 +198,6 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
                 <div className="grid-2">
                   <Field label="Produk"><Select value={f.product} onChange={set('product')} options={config.products} placeholder="Tiada" /></Field>
                   <Field label="Kempen"><Select value={f.campaignId} onChange={set('campaignId')} options={campaigns.filter((c) => c.status !== 'archived').map((c) => ({ value: c.id, label: c.name }))} placeholder="Tiada kempen" /></Field>
-                  <Field label="Jenis content"><Select value={f.type} onChange={set('type')} options={config.contentTypes} placeholder="Pilih" /></Field>
                   <Field label="Keutamaan"><Select value={f.priority} onChange={set('priority')} options={PRIORITIES} /></Field>
                   <Field label="Status"><Select value={f.status} onChange={set('status')} options={statusList(config)} /></Field>
                   <Field label="Akaun terbit"><Input value={f.publishAccount} onChange={set('publishAccount')} placeholder="Akaun utama Dibu" /></Field>

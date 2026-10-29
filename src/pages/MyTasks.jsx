@@ -10,12 +10,19 @@ import { useToast } from '../context/ToastContext';
 import { updateOwnTask, updateById, addLink, addIdea } from '../lib/db';
 import { statusForStage } from '../lib/statuses';
 import { TASK_ROLES, findOpt, slug } from '../lib/constants';
-import { today, addDays, startOfWeek, fmtDate, relDue } from '../lib/dates';
+import { today, addDays, startOfWeek, fmtDate, relDue, parseDate } from '../lib/dates';
 import { PageHeader, Card, Button, Pill, Field, Input, Textarea, Loading, Empty, Stat, Segmented } from '../components/ui';
 import { TaskStatusPill } from '../components/pills';
+import { doc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { useDoc } from '../hooks/useFirestore';
+import { computeKpi, monthKey, monthPace, kpiStatus, staffTarget, fmtKpi } from '../lib/kpi';
+import { KpiBar } from './Kpi';
 
 export default function MyTasks() {
-  const { tasks, contentById, staffById, ready } = useData();
+  const { tasks, content: allContent, contentById, staffById, ready } = useData();
+  const kKey = monthKey(parseDate(today()).getFullYear(), parseDate(today()).getMonth());
+  const targetsQ = useDoc(useMemo(() => doc(db, 'kpiTargets', kKey), [kKey]), kKey);
   const { profile } = useAuth();
   const config = useConfig();
   const { run } = useToast();
@@ -48,6 +55,10 @@ export default function MyTasks() {
 
   useEffect(() => { setNote(selected?.notes || ''); setLink(''); }, [selected?.id, selected?.notes]);
 
+  const kPace = monthPace(kKey);
+  const me = profile.staffId ? staffById[profile.staffId] : null;
+  const myKpi = me ? computeKpi({ key: kKey, content: allContent, tasks, staff: [me], metrics: [], accountStats: [], config }).perStaff[0] : null;
+
   if (!ready) return <div className="page"><Loading /></div>;
   if (!profile.staffId && !mine.length) {
     return <div className="page"><PageHeader title="Hari ini" /><Empty title="Akaun belum dipautkan ke profil staf" text="Minta Admin pautkan akaun anda dalam Tetapan › Pengguna." /></div>;
@@ -74,6 +85,24 @@ export default function MyTasks() {
         <Stat label="Minggu ini" value={mine.filter((t) => t.status !== 'done' && t.deadline >= t0 && t.deadline <= weekEnd).length} />
         <Stat label="Lewat" value={overdue} tone={overdue ? 'red' : undefined} />
       </div>
+
+      {myKpi && (
+        <Card title="KPI saya bulan ini" subtitle={`Content yang anda miliki dan tugasan berdeadline bulan ini. ${Math.round(kPace * 100)}% bulan sudah berlalu.`}>
+          <div className="kpi-mini">
+            {[['Content terbit', myKpi.published, staffTarget(targetsQ.data, profile.staffId, 'published'), 'count', ''], ['Siap tepat masa', myKpi.onTimePct, staffTarget(targetsQ.data, profile.staffId, 'onTimePct'), 'rate', '%']].map(([label, actual, target, kind, unit]) => {
+              const st = kpiStatus(actual, target, kind, kPace);
+              return (
+                <div key={label} className="col gap-xs">
+                  <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}><span className="small muted">{label}</span><Pill tone={st.tone}>{st.label}</Pill></div>
+                  <strong style={{ fontSize: 20 }}>{fmtKpi(actual, unit)}{target ? <span className="kpi-target"> / {fmtKpi(target, unit)}</span> : ''}</strong>
+                  <KpiBar ratio={st.ratio} pace={kind === 'count' ? kPace : null} tone={st.tone === 'gray' ? 'gray' : st.tone} />
+                </div>
+              );
+            })}
+            <div className="col gap-xs"><span className="small muted">Tugasan siap</span><strong style={{ fontSize: 20 }}>{myKpi.done}/{myKpi.assigned}</strong>{myKpi.overdue > 0 && <span className="small danger-text">{myKpi.overdue} lewat</span>}</div>
+          </div>
+        </Card>
+      )}
 
       <div className="split">
         <div className="main">

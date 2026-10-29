@@ -3,18 +3,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   LayoutDashboard, CalendarDays, Columns3, Users, Star, Megaphone, Link2, BarChart3, Settings, ListChecks,
-  PackageCheck, Bell, Plus, Menu, X, LogOut, ChevronsLeft, ChevronsRight,
+  PackageCheck, Bell, Plus, Menu, X, LogOut, ChevronsLeft, ChevronsRight, BadgeCheck, Target,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useConfig } from '../context/ConfigContext';
 import { can, isCreatorOnly } from '../lib/permissions';
 import { ROLES } from '../lib/constants';
+import { stageOf } from '../lib/statuses';
 import { fmtDateTime } from '../lib/dates';
 import { useNotifications } from '../hooks/useNotifications';
 import { Avatar, SearchInput } from './ui';
 
-function navItems(profile) {
+function navItems(profile, pendingApprovals) {
   if (isCreatorOnly(profile)) {
     return [
       { to: '/my-tasks', label: 'Hari ini', icon: ListChecks },
@@ -25,11 +26,13 @@ function navItems(profile) {
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/calendar', label: 'Kalendar', icon: CalendarDays },
     { to: '/pipeline', label: 'Papan kerja', icon: Columns3 },
+    { to: '/approvals', label: 'Kelulusan', icon: BadgeCheck, badge: pendingApprovals },
     { to: '/team', label: 'Pasukan', icon: Users },
     { to: '/creators', label: 'Creator', icon: Star },
     { to: '/campaigns', label: 'Kempen', icon: Megaphone },
     { to: '/deliverables', label: 'Deliverable', icon: PackageCheck },
     { to: '/library', label: 'Pustaka link', icon: Link2 },
+    { to: '/kpi', label: 'KPI', icon: Target },
     { to: '/analytics', label: 'Laporan', icon: BarChart3 },
   ];
   if (profile?.staffId) items.splice(1, 0, { to: '/my-tasks', label: 'Tugasan saya', icon: ListChecks });
@@ -48,6 +51,7 @@ function CreateMenu({ profile }) {
   }, []);
   const items = [
     can(profile, 'content.create') && ['Content baharu', '/calendar?add=1'],
+    can(profile, 'library.add') && ['Link ke pustaka', '/library?add=1'],
     can(profile, 'campaign.manage') && ['Kempen baharu', '/campaigns/new'],
     can(profile, 'creator.manage') && ['Creator baharu', '/creators/new'],
     can(profile, 'task.assign') && ['Tugasan staf', '/team?newTask=1'],
@@ -133,14 +137,15 @@ function NotificationBell({ n: notif }) {
 export default function Layout() {
   const { profile, logout } = useAuth();
   const config = useConfig();
-  const { errors } = useData();
+  const { errors, content } = useData();
   const notif = useNotifications();
   const [drawer, setDrawer] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('dibu_sidebar') === 'collapsed'; } catch { return false; }
   });
   const location = useLocation();
-  const items = navItems(profile);
+  const pendingApprovals = useMemo(() => content.filter((c) => !c.archived && !c.isSlot && stageOf(config, c.status) === 'review').length, [content, config]);
+  const items = navItems(profile, can(profile, 'content.approve') ? pendingApprovals : 0);
   const creatorOnly = isCreatorOnly(profile);
   const dataErrors = Object.entries(errors).filter(([, e]) => e);
 
@@ -159,9 +164,10 @@ export default function Layout() {
         </span>
       </div>
       <nav aria-label="Menu utama" className="nav">
-        {items.map(({ to, label, icon: Icon }) => (
-          <NavLink key={to} to={to} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} title={label}>
+        {items.map(({ to, label, icon: Icon, badge }) => (
+          <NavLink key={to} to={to} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} title={badge ? `${label} (${badge})` : label}>
             <Icon size={18} /><span className="nav-label">{label}</span>
+            {badge > 0 && <span className="nav-badge">{badge > 99 ? '99+' : badge}</span>}
           </NavLink>
         ))}
       </nav>

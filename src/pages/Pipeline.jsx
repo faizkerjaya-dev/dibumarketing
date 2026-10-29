@@ -1,4 +1,5 @@
 // Papan kerja content. Seret kad ke lajur lain untuk tukar status.
+// Lalai: mod Fokus (hari ini sahaja; bila semua terbit, auto tukar ke hari seterusnya).
 // Lajur mengikut status dalam Tetapan, jadi pasukan boleh ubah sendiri.
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -9,9 +10,9 @@ import { useConfig } from '../context/ConfigContext';
 import { can } from '../lib/permissions';
 import { statusList, stageOf, isArchived, findStatus, statusForStage } from '../lib/statuses';
 import { TASK_ROLES, findOpt } from '../lib/constants';
-import { today, fmtDate } from '../lib/dates';
+import { today, fmtDate, addDays, startOfWeek } from '../lib/dates';
 import { staffWorkload } from '../lib/workload';
-import { PageHeader, Button, Avatar, Loading, Select, IconButton } from '../components/ui';
+import { PageHeader, Button, Avatar, Loading, Select, IconButton, Segmented } from '../components/ui';
 import { PriorityPill, ReviewPill } from '../components/pills';
 import ContentFilters, { EMPTY_FILTERS, applyFilters } from '../components/ContentFilters';
 import { useStatusChange } from '../components/StatusChangeModal';
@@ -35,6 +36,8 @@ export default function Pipeline() {
   const canEdit = can(profile, 'content.edit');
   const stageFilter = params.get('stage');
   const t0 = today();
+  const [scope, setScope] = useState(stageFilter ? 'all' : 'focus');
+  const [withLate, setWithLate] = useState(false);
 
   const overloaded = useMemo(() => new Set(staff.filter((s) => staffWorkload(s, tasks).band === 'over').map((s) => s.id)), [staff, tasks]);
   const nextTask = useMemo(() => {
@@ -49,8 +52,30 @@ export default function Pipeline() {
     .filter((s) => showArchived || s.stage !== 'archived')
     .filter((s) => !stageFilter || s.stage === stageFilter);
 
+  // Mod Fokus: papar content hari ini sahaja. Bila semua content hari ini sudah terbit,
+  // papan bertukar sendiri ke hari seterusnya yang masih ada kerja (biasanya esok).
+  const isDone = (c) => ['published', 'archived'].includes(stageOf(config, c.status));
+  const real = useMemo(() => content.filter((c) => !c.archived && !c.isSlot && !isArchived(config, c.status)), [content, config]);
+  const focusDay = useMemo(() => {
+    const pendingDays = [...new Set(real.filter((c) => c.publishDate >= t0 && !isDone(c)).map((c) => c.publishDate))].sort();
+    return pendingDays[0] || addDays(t0, 1);
+  }, [real, t0]); // eslint-disable-line react-hooks/exhaustive-deps
+  const todayAll = real.filter((c) => c.publishDate === t0);
+  const todayDone = todayAll.length > 0 && todayAll.every(isDone);
+  const lateList = real.filter((c) => c.publishDate && c.publishDate < t0 && !isDone(c));
+  const weekEnd = addDays(startOfWeek(t0), 6);
+  const inScope = (c) => {
+    if (scope === 'all') return true;
+    if (withLate && c.publishDate && c.publishDate < t0 && !isDone(c)) return true;
+    if (scope === 'focus') return c.publishDate === focusDay;
+    if (scope === 'today') return c.publishDate === t0;
+    if (scope === 'tomorrow') return c.publishDate === addDays(t0, 1);
+    if (scope === 'week') return c.publishDate >= t0 && c.publishDate <= weekEnd;
+    return true;
+  };
+
   const list = useMemo(() => {
-    const base = applyFilters(content.filter((c) => (showArchived || (!c.archived && !isArchived(config, c.status))) && (showSlots || !c.isSlot)), filters);
+    const base = applyFilters(content.filter((c) => (showArchived || (!c.archived && !isArchived(config, c.status))) && (showSlots || !c.isSlot) && inScope(c)), filters);
     const due = (c) => nextTask[c.id]?.deadline || c.publishDate || '9999';
     return [...base].sort((a, b) => {
       if (sort === 'priority') return (PRIO_RANK[a.priority] ?? 3) - (PRIO_RANK[b.priority] ?? 3);
@@ -58,7 +83,7 @@ export default function Pipeline() {
       if (sort === 'publish') return (a.publishDate || '9999').localeCompare(b.publishDate || '9999');
       return due(a).localeCompare(due(b));
     });
-  }, [content, config, filters, sort, showArchived, showSlots, nextTask]);
+  }, [content, config, filters, sort, showArchived, showSlots, nextTask, scope, withLate, focusDay]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ready) return <div className="page"><Loading /></div>;
 
@@ -78,6 +103,25 @@ export default function Pipeline() {
   return (
     <div className="page">
       <PageHeader title="Papan kerja" actions={can(profile, 'content.create') && <Button variant="primary" icon={Plus} onClick={() => setDrawer({ preset: { date: today() } })}>Tambah content</Button>} />
+      <div className="toolbar">
+        <Segmented value={scope} onChange={setScope} options={[
+          { key: 'focus', label: 'Fokus' }, { key: 'today', label: 'Hari ini' }, { key: 'tomorrow', label: 'Esok' }, { key: 'week', label: 'Minggu ini' }, { key: 'all', label: 'Semua' },
+        ]} />
+        {scope === 'focus' && (
+          <span className="small">
+            {focusDay === t0
+              ? <>Memaparkan content <strong>hari ini</strong>. Bila semuanya terbit, papan ini bertukar ke hari seterusnya.</>
+              : <>{todayDone ? 'Semua content hari ini sudah terbit. ' : 'Tiada content yang belum siap hari ini. '}Memaparkan <strong>{fmtDate(focusDay, { weekday: 'long' })}</strong>.</>}
+          </span>
+        )}
+      </div>
+      {scope !== 'all' && lateList.length > 0 && (
+        <div className="warnbox row" style={{ alignItems: 'center' }}>
+          <div><strong>{lateList.length} content lewat</strong><span>Tarikh terbit sudah lepas tetapi belum terbit. Tidak dipaparkan di sini supaya papan tidak sesak.</span></div>
+          <span className="grow" />
+          <Button size="sm" onClick={() => setWithLate((v) => !v)}>{withLate ? 'Sorok yang lewat' : 'Tunjuk yang lewat'}</Button>
+        </div>
+      )}
       <ContentFilters value={filters} onChange={setFilters} hide={['status']} />
       <div className="toolbar">
         <Select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Susun" options={[{ value: 'deadline', label: 'Susun: deadline terdekat' }, { value: 'publish', label: 'Susun: tarikh terbit' }, { value: 'priority', label: 'Susun: keutamaan' }, { value: 'title', label: 'Susun: tajuk' }]} />
@@ -104,7 +148,7 @@ export default function Pipeline() {
                   <h2 style={{ fontSize: 13 }}>{col.label}</h2>
                   <span className="muted small strong">{cards.length}</span>
                   {can(profile, 'content.create') && col.stage !== 'archived' && (
-                    <IconButton icon={Plus} label={`Tambah ke ${col.label}`} onClick={() => setDrawer({ preset: { date: today(), status: col.key } })} style={{ marginLeft: 'auto', width: 30, height: 30 }} />
+                    <IconButton icon={Plus} label={`Tambah ke ${col.label}`} onClick={() => setDrawer({ preset: { date: scope === 'focus' ? focusDay : today(), status: col.key } })} style={{ marginLeft: 'auto', width: 30, height: 30 }} />
                   )}
                 </div>
                 {cards.map((c) => {
