@@ -34,13 +34,14 @@ export default function StatusChangeModal({ request, onClose }) {
   const { content, status } = request;
   const missing = missingForStatus(config, content, status).filter((f) => f !== 'ownerStaffId');
   const stillMissing = missing.filter((f) => !extra[f]);
-  const label = findStatus(config, status).label;
+  const info = findStatus(config, status);
+  const { label } = info;
 
   const save = async () => {
     setBusy(true);
     const patch = Object.fromEntries(missing.map((f) => [f, extra[f]]));
     if (patch.title) patch.isSlot = false;
-    const ok = await run(() => changeContentStatus(content, status, patch, { profile, staffById }), `Ditukar ke ${label}`);
+    const ok = await run(() => changeContentStatus(content, info, patch, { profile, staffById }), `Ditukar ke ${label}`);
     setBusy(false);
     if (ok) onClose(true);
   };
@@ -74,7 +75,8 @@ export function useStatusChange() {
     const missing = missingForStatus(config, content, status);
     if (missing.includes('ownerStaffId')) { error({ code: 'validation', message: 'Tetapkan pemilik content dahulu.' }); return; }
     if (missing.length) { setRequest({ content, status }); return; }
-    await run(() => changeContentStatus(content, status, {}, { profile, staffById }), `Ditukar ke ${findStatus(config, status).label}`);
+    const info = findStatus(config, status);
+    await run(() => changeContentStatus(content, info, {}, { profile, staffById }), `Ditukar ke ${info.label}`);
   };
   return [moveTo, <StatusChangeModal key="status-modal" request={request} onClose={() => setRequest(null)} />];
 }

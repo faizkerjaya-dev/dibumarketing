@@ -10,7 +10,7 @@ import { useConfig } from '../context/ConfigContext';
 import { useQuery } from '../hooks/useFirestore';
 import { stageOf, isArchived } from '../lib/statuses';
 import { DELIVERABLE_DONE, money, findOpt, TASK_ROLES } from '../lib/constants';
-import { today, monthStart, monthEnd, monthLabel, inRange, addDays, fmtDate, parseDate, relDue, fmtDateTime } from '../lib/dates';
+import { today, monthStart, monthEnd, monthLabel, monthShort, inRange, addDays, fmtDate, parseDate, relDue, fmtDateTime } from '../lib/dates';
 import { staffWorkload, BANDS } from '../lib/workload';
 import { PageHeader, Card, Stat, Bar, Pill, Avatar, Loading, Empty, ErrorBox } from '../components/ui';
 import { CampaignStatusPill } from '../components/pills';
@@ -89,11 +89,8 @@ export default function Dashboard() {
       <div className="stats">
         <Stat label="Content dirancang" value={s.month.length} hint={s.slots ? `${s.slots} slot belum ada tajuk` : 'Tarikh terbit bulan ini'} />
         <Stat label="Sudah terbit" value={s.published} hint={s.month.length ? `${Math.round((s.published / s.month.length) * 100)}% daripada rancangan` : '—'} />
-        <Stat label="Dalam produksi" value={s.production} />
-        <Stat label="Tunggu approval" value={s.review} />
         <Stat label="Lewat" value={s.overdue} tone={s.overdue ? 'red' : undefined} hint="Terbit atau tugasan lewat" />
-        <Stat label="Kempen aktif" value={s.campaigns.length} />
-        <Stat label="Creator aktif" value={s.creatorsActive} />
+        <Stat label="Kempen aktif" value={s.campaigns.length} hint={`${s.creatorsActive} creator aktif`} />
         <Stat label="Amaran beban kerja" value={s.alerts} tone={s.alerts ? 'amber' : undefined} hint="Staf 90% ke atas" />
         <Stat label="Kadar FYP" value={s.reviewed ? `${Math.round((s.fyp / s.reviewed) * 100)}%` : '—'} hint={s.reviewed ? `${s.fyp} daripada ${s.reviewed} disemak` : 'Belum ada semakan'} />
       </div>
@@ -104,11 +101,11 @@ export default function Dashboard() {
             {total ? (
               <div className="stackbar">{s.byStage.filter((x) => x[1]).map(([l, n, tone]) => <div key={l} className={`fill-${tone}`} style={{ flex: n }} title={`${l}: ${n}`} />)}</div>
             ) : <p className="muted small">Tiada content dengan tarikh terbit bulan ini.</p>}
-            <div className="grid-3" style={{ marginTop: 14 }}>
+            <div className="stage-tiles">
               {s.byStage.map(([l, n, tone, stage]) => (
-                <Link key={l} to={`/pipeline?stage=${stage}`} className="stat" style={{ fontWeight: 400 }}>
+                <Link key={l} to={`/pipeline?stage=${stage}`} className="stat" title={`Buka ${l} dalam Papan kerja`}>
                   <span className="row gap-sm small muted"><span className={`dot dot-${tone}`} />{l}</span>
-                  <span className="stat-value" style={{ color: 'var(--text)' }}>{n}</span>
+                  <span className="stat-value">{n}</span>
                 </Link>
               ))}
             </div>
@@ -126,7 +123,7 @@ export default function Dashboard() {
                     </div>
                     <Bar pct={w.pct ?? 0} tone={BANDS[w.band].tone === 'gray' ? 'gray' : BANDS[w.band].tone} />
                   </div>
-                  <Pill tone={BANDS[w.band].tone}>{BANDS[w.band].label}</Pill>
+                  <span className="band-pill"><Pill tone={BANDS[w.band].tone}>{BANDS[w.band].label}</Pill></span>
                 </Link>
               ))}
             </Card>
@@ -155,7 +152,7 @@ export default function Dashboard() {
               return (
                 <Link key={i} to={x.to} className="list-row">
                   <div className={`datebox tone-${tone}`}>
-                    <span>{x.date ? parseDate(x.date).toLocaleDateString('en-MY', { month: 'short' }).toUpperCase() : '—'}</span>
+                    <span>{x.date ? monthShort(x.date).toUpperCase() : '—'}</span>
                     <span>{x.date ? parseDate(x.date).getDate() : ''}</span>
                   </div>
                   <div className="grow min0"><div className="strong ellipsis">{x.title}</div><div className="small muted ellipsis">{x.kind}{x.who ? ` · ${x.who}` : ''}</div></div>

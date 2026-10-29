@@ -49,14 +49,14 @@ export default function AssignmentModal({ open, onClose, campaignId, assignment 
 
   const remove = async () => {
     const count = deliverables.filter((d) => d.assignmentId === assignment.id).length;
-    if (count) { run(async () => { throw new AppError(`Creator ini ada ${count} deliverable. Padam deliverable dahulu, atau set kontrak "Expired".`); }); return; }
-    if (!(await confirm(`Buang ${assignment.creatorName} dari ${assignment.campaignName}?`, { title: 'Remove creator', okLabel: 'Remove', danger: true }))) return;
+    if (count) { run(async () => { throw new AppError(`Creator ini ada ${count} deliverable. Padam deliverable dahulu, atau set status kontrak "Tamat".`); }); return; }
+    if (!(await confirm(`Buang ${assignment.creatorName} dari ${assignment.campaignName}?`, { title: 'Buang creator', okLabel: 'Buang', danger: true }))) return;
     const ok = await run(() => removeById('campaignCreators', assignment.id), 'Dibuang');
     if (ok) onClose();
   };
 
   return (
-    <Modal open={open} onClose={onClose} wide title={assignment ? `${assignment.creatorName} · ${assignment.campaignName}` : 'Assign creator to campaign'} footer={<>
+    <Modal open={open} onClose={onClose} wide title={assignment ? `${assignment.creatorName} · ${assignment.campaignName}` : 'Tugaskan creator ke kempen'} footer={<>
       {assignment && <Button variant="danger" onClick={remove} className="mr-auto">Buang</Button>}
       <Button onClick={onClose}>Batal</Button><Button variant="primary" busy={busy} onClick={save}>Simpan</Button>
     </>}>

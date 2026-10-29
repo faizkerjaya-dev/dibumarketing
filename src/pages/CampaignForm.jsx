@@ -48,7 +48,7 @@ export default function CampaignForm() {
       }
       const code = f.code.trim() || (await nextCode('campaigns', 'CMP'));
       const nid = await createDoc('campaigns', { ...data, code, team: [], expenses: [] }, profile);
-      await logActivity(profile, { type: 'campaign_created', message: `${profile.name} created campaign ${data.name}`, refType: 'campaign', refId: nid });
+      await logActivity(profile, { type: 'campaign_created', message: `${profile.name} cipta kempen ${data.name}`, refType: 'campaign', refId: nid });
       return nid;
     }, 'Kempen disimpan');
     setBusy(false);
@@ -57,11 +57,11 @@ export default function CampaignForm() {
 
   return (
     <div className="page">
-      <PageHeader crumb={<Link to="/campaigns">Campaigns</Link>} title={id ? `Edit ${f.name}` : 'New campaign'} actions={<><Button onClick={() => navigate(-1)}>Batal</Button><Button variant="primary" busy={busy} onClick={save}>Simpan</Button></>} />
+      <PageHeader crumb={<Link to="/campaigns">Kempen</Link>} title={id ? `Edit ${f.name}` : 'Kempen baharu'} actions={<><Button onClick={() => navigate(-1)}>Batal</Button><Button variant="primary" busy={busy} onClick={save}>Simpan</Button></>} />
       <Card>
         <div className="grid-2">
           <Field label="Nama kempen" required><Input value={f.name} onChange={set('name')} placeholder="Ramadan 2027" /></Field>
-          <Field label="Campaign ID" hint="Kosongkan untuk jana automatik"><Input value={f.code} onChange={set('code')} disabled={!!id} /></Field>
+          <Field label="Kod kempen" hint="Kosongkan untuk jana automatik"><Input value={f.code} onChange={set('code')} disabled={!!id} /></Field>
           <Field label="Tarikh mula"><Input type="date" value={f.startDate} onChange={set('startDate')} /></Field>
           <Field label="Tarikh tamat"><Input type="date" value={f.endDate} onChange={set('endDate')} /></Field>
           <Field label="Pengurus kempen"><Select value={f.managerStaffId} onChange={set('managerStaffId')} options={staff.map((s) => ({ value: s.id, label: s.name }))} placeholder="Pilih" /></Field>

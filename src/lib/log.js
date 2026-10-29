@@ -1,4 +1,4 @@
-// Logger ringkas. Simpan 200 log terakhir dalam memori untuk butang "Copy diagnostics".
+// Logger ringkas. Simpan 200 log terakhir dalam memori untuk butang "Salin diagnostik".
 // Log debug/info hanya keluar di Console bila debug aktif:
 //   - tambah ?debug=1 pada URL, atau
 //   - jalankan localStorage.setItem('dibu_debug','1') dalam Console.

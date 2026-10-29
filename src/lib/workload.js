@@ -2,13 +2,13 @@
 import { addDays, inRange, today, startOfWeek } from './dates';
 
 export const BANDS = {
-  over: { label: 'Over capacity', tone: 'red' },
-  near: { label: 'Near capacity', tone: 'amber' },
+  over: { label: 'Melebihi kapasiti', tone: 'red' },
+  near: { label: 'Hampir penuh', tone: 'amber' },
   normal: { label: 'Normal', tone: 'blue' },
-  available: { label: 'Available', tone: 'green' },
-  leave: { label: 'On leave', tone: 'gray' },
-  inactive: { label: 'Inactive', tone: 'gray' },
-  unknown: { label: 'No hour estimates', tone: 'gray' },
+  available: { label: 'Masih lapang', tone: 'green' },
+  leave: { label: 'Bercuti', tone: 'gray' },
+  inactive: { label: 'Tidak aktif', tone: 'gray' },
+  unknown: { label: 'Tiada anggaran jam', tone: 'gray' },
 };
 
 export function staffWorkload(staff, tasks, weekStart = startOfWeek(today())) {

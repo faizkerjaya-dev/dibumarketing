@@ -14,7 +14,7 @@ import { PageHeader, Card, Button, Field, Input, Select, Textarea, MultiChips, L
 const EMPTY = {
   name: '', displayName: '', email: '', phone: '', contactPerson: '', location: '', language: '', tags: [], status: 'new',
   socials: [{ id: uid(), platform: 'TikTok', username: '', url: '', followers: '', er: '' }],
-  audience: { age: '', gender: '', geo: '', niche: '', source: 'Creator-provided' },
+  audience: { age: '', gender: '', geo: '', niche: '', source: 'Diberi oleh creator' },
   rates: { video: '', reel: '', story: '', live: '', ugc: '', affiliatePct: '', notes: '' },
   relationshipOwnerId: '', firstContact: '', lastContact: '', communicationStatus: '', contractStatus: 'none', contractExpiry: '',
   paymentDetailsStatus: 'missing', previousCollabs: '', notes: '',
@@ -60,7 +60,7 @@ export default function CreatorForm() {
       }
       const code = await nextCode('creators', 'CR');
       const nid = await createDoc('creators', { ...data, code }, profile);
-      await logActivity(profile, { type: 'creator_created', message: `${profile.name} added creator ${data.name}`, refType: 'creator', refId: nid });
+      await logActivity(profile, { type: 'creator_created', message: `${profile.name} tambah creator ${data.name}`, refType: 'creator', refId: nid });
       return nid;
     }, 'Creator disimpan');
     setBusy(false);
@@ -69,29 +69,29 @@ export default function CreatorForm() {
 
   return (
     <div className="page">
-      <PageHeader crumb={<Link to="/creators">Creator Management</Link>} title={id ? `Edit ${f.name}` : 'Add creator'} actions={<><Button onClick={() => navigate(-1)}>Batal</Button><Button variant="primary" busy={busy} onClick={save}>Simpan</Button></>} />
+      <PageHeader crumb={<Link to="/creators">Creator</Link>} title={id ? `Edit ${f.name}` : 'Tambah creator'} actions={<><Button onClick={() => navigate(-1)}>Batal</Button><Button variant="primary" busy={busy} onClick={save}>Simpan</Button></>} />
       <Card>
         <div className="col gap-lg">
           <div className="form-section">
-            <h2>Identity</h2>
+            <h2>Maklumat asas</h2>
             <div className="grid-2">
               <Field label="Nama creator" required><Input value={f.name} onChange={set('name')} /></Field>
               <Field label="Nama paparan"><Input value={f.displayName} onChange={set('displayName')} /></Field>
               <Field label="Email"><Input type="email" value={f.email} onChange={set('email')} /></Field>
               <Field label="Telefon"><Input value={f.phone} onChange={set('phone')} /></Field>
-              <Field label="Contact person / manager"><Input value={f.contactPerson} onChange={set('contactPerson')} /></Field>
+              <Field label="Orang dihubungi / pengurus"><Input value={f.contactPerson} onChange={set('contactPerson')} /></Field>
               <Field label="Lokasi"><Input value={f.location} onChange={set('location')} /></Field>
-              <Field label="Preferred language"><Input value={f.language} onChange={set('language')} placeholder="Bahasa Melayu" /></Field>
+              <Field label="Bahasa pilihan"><Input value={f.language} onChange={set('language')} placeholder="Bahasa Melayu" /></Field>
               <Field label="Status hubungan"><Select value={f.status} onChange={set('status')} options={CREATOR_STATUSES} /></Field>
               <Field label="Klasifikasi" full group hint="Boleh pilih lebih dari satu."><MultiChips options={config.creatorTags} value={f.tags} onChange={(tags) => setF({ ...f, tags })} allowNew /></Field>
             </div>
           </div>
 
           <div className="form-section">
-            <div className="row" style={{ justifyContent: 'space-between' }}><h2>Social profiles</h2><Button size="sm" icon={Plus} onClick={() => setF({ ...f, socials: [...f.socials, { id: uid(), platform: 'Instagram', username: '', url: '', followers: '', er: '' }] })}>Tambah akaun</Button></div>
+            <div className="row" style={{ justifyContent: 'space-between' }}><h2>Profil media sosial</h2><Button size="sm" icon={Plus} onClick={() => setF({ ...f, socials: [...f.socials, { id: uid(), platform: 'Instagram', username: '', url: '', followers: '', er: '' }] })}>Tambah akaun</Button></div>
             {f.socials.map((s, i) => (
               <div key={s.id || i} className="grid-3" style={{ alignItems: 'end' }}>
-                <Field label="Platform"><Select value={s.platform} onChange={(e) => setSocial(i, 'platform', e.target.value)} options={[...config.platforms, 'Other']} /></Field>
+                <Field label="Platform"><Select value={s.platform} onChange={(e) => setSocial(i, 'platform', e.target.value)} options={[...config.platforms, 'Lain-lain']} /></Field>
                 <Field label="Username"><Input value={s.username} onChange={(e) => setSocial(i, 'username', e.target.value)} placeholder="@username" /></Field>
                 <Field label="Link profil"><Input type="url" value={s.url} onChange={(e) => setSocial(i, 'url', e.target.value)} /></Field>
                 <Field label="Pengikut"><Input type="number" min="0" value={s.followers ?? ''} onChange={(e) => setSocial(i, 'followers', e.target.value)} /></Field>
@@ -102,11 +102,11 @@ export default function CreatorForm() {
           </div>
 
           <div className="form-section">
-            <h2>Audience</h2>
+            <h2>Audiens</h2>
             <p className="muted small">Maklumat ini dari creator atau sumber luar, bukan disahkan.</p>
             <div className="grid-2">
               <Field label="Julat umur"><Input value={f.audience.age} onChange={setIn('audience', 'age')} placeholder="25–34: 48%" /></Field>
-              <Field label="Jantina"><Input value={f.audience.gender} onChange={setIn('audience', 'gender')} placeholder="Female 82%" /></Field>
+              <Field label="Jantina"><Input value={f.audience.gender} onChange={setIn('audience', 'gender')} placeholder="Wanita 82%" /></Field>
               <Field label="Geografi"><Input value={f.audience.geo} onChange={setIn('audience', 'geo')} placeholder="Selangor, KL, Johor" /></Field>
               <Field label="Niche audiens"><Input value={f.audience.niche} onChange={setIn('audience', 'niche')} /></Field>
               <Field label="Sumber"><Input value={f.audience.source} onChange={setIn('audience', 'source')} /></Field>
@@ -114,10 +114,10 @@ export default function CreatorForm() {
           </div>
 
           <div className="form-section">
-            <h2>Rate card (RM)</h2>
+            <h2>Kadar rasmi (RM)</h2>
             <p className="muted small">Harga rasmi creator. Fee yang dirunding untuk setiap kempen disimpan dalam kempen.</p>
             <div className="grid-3">
-              {[['video', 'Video'], ['reel', 'Reel'], ['story', 'Story'], ['live', 'Live session (per hour)'], ['ugc', 'UGC production'], ['affiliatePct', 'Affiliate commission (%)']].map(([k, l]) => (
+              {[['video', 'Video'], ['reel', 'Reel'], ['story', 'Story'], ['live', 'Sesi live (sejam)'], ['ugc', 'Produksi UGC'], ['affiliatePct', 'Komisen affiliate (%)']].map(([k, l]) => (
                 <Field key={k} label={l}><Input type="number" min="0" value={f.rates[k] ?? ''} onChange={setIn('rates', k)} /></Field>
               ))}
               <Field label="Nota kadar" full><Input value={f.rates.notes || ''} onChange={setIn('rates', 'notes')} /></Field>
@@ -125,15 +125,15 @@ export default function CreatorForm() {
           </div>
 
           <div className="form-section">
-            <h2>Relationship</h2>
+            <h2>Hubungan</h2>
             <div className="grid-3">
               <Field label="Pemilik hubungan"><Select value={f.relationshipOwnerId} onChange={set('relationshipOwnerId')} options={staff.map((s) => ({ value: s.id, label: s.name }))} placeholder="Tiada" /></Field>
               <Field label="Hubungan pertama"><Input type="date" value={f.firstContact} onChange={set('firstContact')} /></Field>
               <Field label="Hubungan terakhir"><Input type="date" value={f.lastContact} onChange={set('lastContact')} /></Field>
-              <Field label="Status komunikasi"><Input value={f.communicationStatus} onChange={set('communicationStatus')} placeholder="Waiting reply" /></Field>
+              <Field label="Status komunikasi"><Input value={f.communicationStatus} onChange={set('communicationStatus')} placeholder="Menunggu balasan" /></Field>
               <Field label="Status kontrak"><Select value={f.contractStatus} onChange={set('contractStatus')} options={CONTRACT_STATUSES} /></Field>
               <Field label="Kontrak tamat"><Input type="date" value={f.contractExpiry} onChange={set('contractExpiry')} /></Field>
-              <Field label="Maklumat bayaran"><Select value={f.paymentDetailsStatus} onChange={set('paymentDetailsStatus')} options={[{ value: 'missing', label: 'Not received' }, { value: 'on_file', label: 'On file (stored outside this system)' }]} /></Field>
+              <Field label="Maklumat bayaran"><Select value={f.paymentDetailsStatus} onChange={set('paymentDetailsStatus')} options={[{ value: 'missing', label: 'Belum diterima' }, { value: 'on_file', label: 'Sudah ada (disimpan di luar sistem ini)' }]} /></Field>
               <Field label="Kerjasama lepas" full><Textarea value={f.previousCollabs} onChange={set('previousCollabs')} rows={2} /></Field>
               <Field label="Nota" full><Textarea value={f.notes} onChange={set('notes')} rows={3} /></Field>
             </div>

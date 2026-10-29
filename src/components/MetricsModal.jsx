@@ -7,7 +7,7 @@ import { METRIC_FIELDS } from '../lib/constants';
 import { today } from '../lib/dates';
 import { Modal, Button, Field, Input } from './ui';
 
-export default function MetricsModal({ open, onClose, target, title = 'Record performance' }) {
+export default function MetricsModal({ open, onClose, target, title = 'Rekod prestasi' }) {
   const { profile } = useAuth();
   const { run } = useToast();
   const [values, setValues] = useState({ date: today() });

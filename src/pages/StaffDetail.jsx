@@ -38,7 +38,7 @@ export default function StaffDetail() {
 
   return (
     <div className="page">
-      <PageHeader crumb={<Link to="/team">Team Management</Link>} title={s.name} actions={<>
+      <PageHeader crumb={<Link to="/team">Pasukan</Link>} title={s.name} actions={<>
         {can(profile, 'staff.manage') && <Button icon={Pencil} onClick={() => setEditOpen(true)}>Edit</Button>}
         {can(profile, 'task.assign') && <Button variant="primary" icon={Plus} onClick={() => setTaskModal({ presetStaffId: id })}>Beri tugasan</Button>}
       </>}>
@@ -49,14 +49,14 @@ export default function StaffDetail() {
       {tab === 'overview' && (
         <div className="split">
           <Card title="Profil" className="main">
-            <KeyVal items={[['Email', s.email], ['Department', s.department], ['Start date', s.startDate && fmtDate(s.startDate, { year: 'numeric' })], ['Weekly capacity', `${s.weeklyCapacity || 0}h`], ['Monthly capacity', s.monthlyCapacity ? `${s.monthlyCapacity}h` : ''], ['Login', s.userUid ? 'Linked' : 'No login yet'], ['Skills', (s.skills || []).join(', ')], ['Responsibilities', s.responsibilities]]} />
-            {(s.unavailable || []).length > 0 && <div style={{ marginTop: 12 }}><h3>Unavailable</h3>{s.unavailable.map((u, i) => <div key={i} className="small">{fmtDate(u.from)} – {fmtDate(u.to)} {u.note && `· ${u.note}`}</div>)}</div>}
+            <KeyVal items={[['Email', s.email], ['Jabatan', s.department], ['Tarikh mula', s.startDate && fmtDate(s.startDate, { year: 'numeric' })], ['Kapasiti mingguan', `${s.weeklyCapacity || 0} jam`], ['Kapasiti bulanan', s.monthlyCapacity ? `${s.monthlyCapacity} jam` : ''], ['Akaun log masuk', s.userUid ? 'Sudah dipautkan' : 'Belum ada akaun'], ['Kemahiran', (s.skills || []).join(', ')], ['Tanggungjawab', s.responsibilities]]} />
+            {(s.unavailable || []).length > 0 && <div style={{ marginTop: 12 }}><h3>Tidak available</h3>{s.unavailable.map((u, i) => <div key={i} className="small">{fmtDate(u.from)} – {fmtDate(u.to)} {u.note && `· ${u.note}`}</div>)}</div>}
             {s.notes && <p className="pre-line small" style={{ marginTop: 12 }}>{s.notes}</p>}
           </Card>
           <div className="side">
             <div className="stats">
-              <Stat label="This week" value={w.hasHours ? `${w.pct}%` : `${w.counted} tasks`} hint={w.hasHours ? `${w.hours} of ${w.cap}h` : 'No hour estimates'} />
-              <Stat label="Overdue" value={w.overdue} tone={w.overdue ? 'red' : undefined} />
+              <Stat label="Minggu ini" value={w.hasHours ? `${w.pct}%` : `${w.counted} tugasan`} hint={w.hasHours ? `${w.hours} daripada ${w.cap} jam` : 'Tiada anggaran jam'} />
+              <Stat label="Lewat" value={w.overdue} tone={w.overdue ? 'red' : undefined} />
             </div>
             <Bar pct={w.pct ?? 0} tone={BANDS[w.band].tone === 'gray' ? 'gray' : BANDS[w.band].tone} height={8} />
           </div>
@@ -66,14 +66,14 @@ export default function StaffDetail() {
       {tab === 'tasks' && (
         <Card>
           {!mine.length && <Empty title="Tiada tugasan" />}
-          {mine.sort((a, b) => (a.status === 'done') - (b.status === 'done') || (a.deadline || '9999').localeCompare(b.deadline || '9999')).map((t) => (
+          {[...mine].sort((a, b) => (a.status === 'done') - (b.status === 'done') || (a.deadline || '9999').localeCompare(b.deadline || '9999')).map((t) => (
             <div key={t.id} className="list-row wrap">
               <span className="grow min0" style={{ flexBasis: 220 }}>
-                {t.contentId ? <Link to={`/content/${t.contentId}`} style={{ color: 'var(--text)' }}>{t.contentTitle}</Link> : <strong>{t.description}</strong>}
+                {t.contentId ? <Link to={`/content/${t.contentId}`} style={{ color: 'var(--text)' }}>{t.contentTitle || t.contentCode}</Link> : <strong>{t.description || 'Tugasan umum'}</strong>}
                 <span className="small muted block">{findOpt(TASK_ROLES, t.role).label}{t.campaignName ? ` · ${t.campaignName}` : ''}</span>
               </span>
-              <span className={t.status !== 'done' && t.deadline < today() ? 'danger-text small' : 'small'}>{t.deadline ? fmtDate(t.deadline) : 'No date'}</span>
-              <span className="small">{t.estHours ? `${t.estHours}h` : '—'}</span>
+              <span className={t.status !== 'done' && t.deadline < today() ? 'danger-text small' : 'small'}>{t.deadline ? fmtDate(t.deadline) : 'Tiada tarikh'}</span>
+              <span className="small">{t.estHours ? `${t.estHours} jam` : '—'}</span>
               <TaskStatusPill value={t.status} />
               {can(profile, 'task.assign') && <Button size="sm" onClick={() => setTaskModal({ task: t })}>Edit</Button>}
             </div>
@@ -87,8 +87,8 @@ export default function StaffDetail() {
           {myContent.map((c) => (
             <Link key={c.id} to={`/content/${c.id}`} className="list-row">
               <span className="small muted strong" style={{ width: 80 }}>{c.code}</span>
-              <span className="grow min0 strong">{c.title}</span>
-              <span className="small muted">{c.ownerStaffId === id ? 'Owner' : mine.filter((t) => t.contentId === c.id).map((t) => findOpt(TASK_ROLES, t.role).label).join(', ')}</span>
+              <span className="grow min0 strong">{c.title || c.slotLabel || 'Slot kosong'}</span>
+              <span className="small muted">{c.ownerStaffId === id ? 'Pemilik' : mine.filter((t) => t.contentId === c.id).map((t) => findOpt(TASK_ROLES, t.role).label).join(', ')}</span>
               <ContentStatusPill value={c.status} />
             </Link>
           ))}
@@ -101,7 +101,7 @@ export default function StaffDetail() {
           {myCampaigns.map((c) => (
             <Link key={c.id} to={`/campaigns/${c.id}`} className="list-row">
               <span className="grow strong">{c.name}</span>
-              <span className="small muted">{c.managerStaffId === id ? 'Campaign Manager' : (c.team || []).filter((m) => m.staffId === id).map((m) => m.role).join(', ') || 'Tasks'}</span>
+              <span className="small muted">{c.managerStaffId === id ? 'Campaign Manager' : (c.team || []).filter((m) => m.staffId === id).map((m) => m.role).join(', ') || 'Ada tugasan'}</span>
               <CampaignStatusPill value={c.status} />
             </Link>
           ))}
@@ -111,9 +111,9 @@ export default function StaffDetail() {
       {tab === 'history' && (
         <Card title="8 minggu lepas" subtitle="Tugasan ikut deadline minggu tersebut. Ini rekod operasi, bukan skor prestasi staf.">
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>Minggu</th><th className="num">Tasks due</th><th className="num">Est. hours</th><th className="num">Done</th><th className="num">On time</th><th style={{ width: 200 }}>Load</th></tr></thead>
+            <thead><tr><th>Minggu</th><th className="num">Tugasan</th><th className="num">Anggaran jam</th><th className="num">Siap</th><th className="num">Tepat masa</th><th style={{ width: 200 }}>Beban</th></tr></thead>
             <tbody>{history.map((h) => (
-              <tr key={h.wk}><td>{fmtDate(h.wk)}</td><td className="num">{h.due}</td><td className="num">{h.hours}h</td><td className="num">{h.done}</td><td className="num">{h.onTime}</td><td><Bar pct={s.weeklyCapacity ? (h.hours / s.weeklyCapacity) * 100 : 0} /></td></tr>
+              <tr key={h.wk}><td>{fmtDate(h.wk)}</td><td className="num">{h.due}</td><td className="num">{h.hours} jam</td><td className="num">{h.done}</td><td className="num">{h.onTime}</td><td><Bar pct={s.weeklyCapacity ? (h.hours / s.weeklyCapacity) * 100 : 0} /></td></tr>
             ))}</tbody>
           </table></div>
         </Card>

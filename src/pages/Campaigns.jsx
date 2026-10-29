@@ -54,12 +54,12 @@ export default function Campaigns() {
       <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Cari kempen" />
         <Select value={status} onChange={(e) => setStatus(e.target.value)} options={CAMPAIGN_STATUSES} placeholder="Semua kecuali arkib" />
-        <Select value={sort} onChange={(e) => setSort(e.target.value)} options={[{ value: 'start', label: 'Sort: newest' }, { value: 'budget', label: 'Sort: budget' }, { value: 'name', label: 'Sort: name' }]} />
+        <Select value={sort} onChange={(e) => setSort(e.target.value)} options={[{ value: 'start', label: 'Susun: terbaru' }, { value: 'budget', label: 'Susun: bajet' }, { value: 'name', label: 'Susun: nama' }]} />
       </div>
       <Card>
         {!rows.length ? <Empty title="Tiada kempen" text="Cipta kempen pertama untuk mula." /> : (
           <div className="table-wrap"><table className="table" style={{ minWidth: 900 }}>
-            <thead><tr><th>Kempen</th><th>Tempoh</th><th>Pengurus</th><th className="num">Budget</th><th className="num">Actual spend</th><th style={{ width: 140 }}>Content</th><th style={{ width: 140 }}>Creator deliverables</th><th>Status</th></tr></thead>
+            <thead><tr><th>Kempen</th><th>Tempoh</th><th>Pengurus</th><th className="num">Bajet</th><th className="num">Belanja sebenar</th><th style={{ width: 140 }}>Content</th><th style={{ width: 140 }}>Deliverable creator</th><th>Status</th></tr></thead>
             <tbody>{rows.map(({ c, s }) => (
               <tr key={c.id} className="clickable" onClick={() => navigate(`/campaigns/${c.id}`)}>
                 <td><strong>{c.name}</strong><div className="small muted">{c.code}</div></td>
@@ -67,8 +67,8 @@ export default function Campaigns() {
                 <td>{c.managerName || '—'}</td>
                 <td className="num">{money(c.budget)}</td>
                 <td className="num">{money(s.spend)}</td>
-                <td><div className="small muted">{s.published}/{s.items.length} published</div><Bar pct={s.items.length ? (s.published / s.items.length) * 100 : 0} /></td>
-                <td><div className="small muted">{s.delDone}/{s.dels.length} done</div><Bar pct={s.dels.length ? (s.delDone / s.dels.length) * 100 : 0} tone="teal" /></td>
+                <td><div className="small muted">{s.published}/{s.items.length} terbit</div><Bar pct={s.items.length ? (s.published / s.items.length) * 100 : 0} /></td>
+                <td><div className="small muted">{s.delDone}/{s.dels.length} siap</div><Bar pct={s.dels.length ? (s.delDone / s.dels.length) * 100 : 0} tone="teal" /></td>
                 <td><CampaignStatusPill value={c.status} /></td>
               </tr>
             ))}</tbody>

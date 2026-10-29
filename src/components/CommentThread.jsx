@@ -13,10 +13,10 @@ import { REVIEW_OUTCOMES, findOpt } from '../lib/constants';
 import { Avatar, Button, Loading, ErrorBox, Pill } from './ui';
 
 const KIND_LABEL = {
-  review: null, revision_request: ['Revision requested', 'amber'], submission: ['Submitted', 'violet'], approval: ['Approved', 'green'],
+  review: null, revision_request: ['Minta pembetulan', 'amber'], submission: ['Draf dihantar', 'violet'], approval: ['Diluluskan', 'green'],
 };
 
-export default function CommentThread({ targetType, targetId, thread, visibleUids = [], placeholder = 'Write a comment', canPost = true, emptyText = 'No comments yet.' }) {
+export default function CommentThread({ targetType, targetId, thread, visibleUids = [], placeholder = 'Tulis komen', canPost = true, emptyText = 'Belum ada komen.' }) {
   const { profile } = useAuth();
   const { run } = useToast();
   const [text, setText] = useState('');
@@ -43,7 +43,7 @@ export default function CommentThread({ targetType, targetId, thread, visibleUid
 
   return (
     <div className="thread">
-      {loading && <Loading text="Loading comments…" />}
+      {loading && <Loading text="Memuatkan komen…" />}
       <ErrorBox error={error} />
       {!loading && !items.length && <p className="muted small">{emptyText}</p>}
       {items.map((c) => {

@@ -31,7 +31,7 @@ function ListEditor({ label, items, onChange }) {
       <div className="chips">
         {items.map((it) => (
           <span key={it} className="chip on" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{it}
-            <button type="button" className="link-btn" aria-label={`Remove ${it}`} onClick={() => onChange(items.filter((x) => x !== it))}><X size={14} /></button>
+            <button type="button" className="link-btn" aria-label={`Buang ${it}`} onClick={() => onChange(items.filter((x) => x !== it))}><X size={14} /></button>
           </span>
         ))}
       </div>
@@ -50,9 +50,12 @@ function GeneralTab() {
   const [draft, setDraft] = useState(config);
   const [busy, setBusy] = useState(false);
   useEffect(() => setDraft(config), [config]);
+  // Status content diurus dalam tab Status. Ia TIDAK disimpan dari sini supaya "Kembali ke asal"
+  // di tab Umum tidak memadam status yang sedang digunakan oleh content.
   const save = async () => {
     setBusy(true);
-    await run(() => setById('settings', 'config', { ...draft, updatedBy: profile.name }), 'Settings saved');
+    const { contentStatuses, updatedAt, ...rest } = draft;
+    await run(() => setById('settings', 'config', { ...rest, updatedBy: profile.name }), 'Tetapan disimpan');
     setBusy(false);
   };
   return (
@@ -68,7 +71,7 @@ function GeneralTab() {
       </div>
       <p className="muted small">Status content kini boleh diubah dalam tab Status. Status deliverable dan kempen masih tetap dalam kod.</p>
       <div className="form-actions">
-        <Button onClick={() => setDraft({ ...DEFAULT_CONFIG })}>Kembali ke asal</Button>
+        <Button onClick={() => setDraft({ ...DEFAULT_CONFIG, contentStatuses: config.contentStatuses })}>Kembali ke asal</Button>
         <Button variant="primary" busy={busy} onClick={save}>Simpan tetapan</Button>
       </div>
     </div>
@@ -204,7 +207,7 @@ function UserModal({ open, onClose, user }) {
         <Field label="Nama" required><Input value={f.name || ''} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <Field label="Email" required={!user}><Input type="email" value={f.email || ''} onChange={(e) => setF({ ...f, email: e.target.value })} disabled={!!user} /></Field>
         {!user && <Field label="Kata laluan sementara" required hint="Minimum 6 aksara. Minta pengguna tukar selepas log masuk."><Input type="text" value={f.password || ''} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>}
-        <Field label="Pautan profil staf" hint="Wajib untuk Content Creator supaya tugasan dia kelihatan."><Select value={f.staffId || ''} onChange={(e) => setF({ ...f, staffId: e.target.value })} options={staff.map((s) => ({ value: s.id, label: `${s.name}${s.userUid && s.userUid !== user?.id ? ' (linked to another login)' : ''}` }))} placeholder="Belum dipautkan" /></Field>
+        <Field label="Pautan profil staf" hint="Wajib untuk Content Creator supaya tugasan dia kelihatan."><Select value={f.staffId || ''} onChange={(e) => setF({ ...f, staffId: e.target.value })} options={staff.map((s) => ({ value: s.id, label: `${s.name}${s.userUid && s.userUid !== user?.id ? ' (sudah dipautkan ke akaun lain)' : ''}` }))} placeholder="Belum dipautkan" /></Field>
         <Field label="Peranan" full group hint="Boleh lebih dari satu. Kebenaran digabungkan."><MultiChips options={roleKeys.map((r) => ROLES[r])} value={rolesValue} onChange={(labels) => setF({ ...f, roles: roleKeys.filter((r) => labels.includes(ROLES[r])) })} /></Field>
         {user && <label className="check field-full"><input type="checkbox" checked={f.active !== false} onChange={(e) => setF({ ...f, active: e.target.checked })} />Aktif (buang tanda untuk sekat akses)</label>}
       </div>
@@ -224,8 +227,8 @@ function UsersTab() {
       <ErrorBox error={error} />
       {!loading && !data.length && <Empty title="Tiada pengguna" />}
       <div className="table-wrap"><table className="table" style={{ minWidth: 720 }}>
-        <thead><tr><th>Nama</th><th>Jawatan</th><th>Profil staf</th><th>Status</th><th /></tr></thead>
-        <tbody>{data.sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((u) => (
+        <thead><tr><th>Nama</th><th>Peranan</th><th>Profil staf</th><th>Status</th><th /></tr></thead>
+        <tbody>{[...data].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((u) => (
           <tr key={u.id}>
             <td><strong>{u.name}</strong><div className="small muted">{u.email}</div></td>
             <td><div className="row gap-xs wrap">{(u.roles || []).map((r) => <span key={r} className="tag">{ROLES[r] || r}</span>)}</div></td>
@@ -287,17 +290,17 @@ function SystemCheck() {
     <div className="col gap-lg">
       <Card title="Persekitaran">
         <ul className="syscheck">
-          <li><Pill tone="green">OK</Pill><span>Firebase project <code>{firebaseConfig.projectId}</code> · auth domain <code>{firebaseConfig.authDomain}</code></span></li>
+          <li><Pill tone="green">OK</Pill><span>Projek Firebase <code>{firebaseConfig.projectId}</code> · auth domain <code>{firebaseConfig.authDomain}</code></span></li>
           <li><Pill tone="green">OK</Pill><span>Log masuk sebagai <strong>{user?.email}</strong> · UID <code className="select-all">{user?.uid}</code></span></li>
-          <li><Pill tone={profile?.roles?.length ? 'green' : 'red'}>{profile?.roles?.length ? 'OK' : 'FIX'}</Pill><span>Role: {(profile?.roles || []).map((r) => ROLES[r] || r).join(', ') || 'tiada'}</span></li>
-          <li><Pill tone={data.myStaff ? 'green' : 'amber'}>{data.myStaff ? 'OK' : 'NOTE'}</Pill><span>{data.myStaff ? `Dipautkan ke profil staf ${data.myStaff.name}` : 'Akaun ini tidak dipautkan ke profil staf. Perlu untuk Content Creator dan halaman Hari ini.'}</span></li>
+          <li><Pill tone={profile?.roles?.length ? 'green' : 'red'}>{profile?.roles?.length ? 'OK' : 'BAIKI'}</Pill><span>Role: {(profile?.roles || []).map((r) => ROLES[r] || r).join(', ') || 'tiada'}</span></li>
+          <li><Pill tone={data.myStaff ? 'green' : 'amber'}>{data.myStaff ? 'OK' : 'NOTA'}</Pill><span>{data.myStaff ? `Dipautkan ke profil staf ${data.myStaff.name}` : 'Akaun ini tidak dipautkan ke profil staf. Perlu untuk Content Creator dan halaman Hari ini.'}</span></li>
         </ul>
       </Card>
-      <Card title="Pendengar data langsung" subtitle="Setiap koleksi Firestore yang didengar oleh app.">
+      <Card title="Sambungan data langsung" subtitle="Setiap koleksi Firestore yang didengar oleh app.">
         <ul className="syscheck">
           {listeners.map((l) => (
             <li key={l.n}>
-              <Pill tone={l.error ? 'red' : l.loading ? 'amber' : 'green'}>{l.error ? 'ERROR' : l.loading ? 'LOADING' : 'OK'}</Pill>
+              <Pill tone={l.error ? 'red' : l.loading ? 'amber' : 'green'}>{l.error ? 'RALAT' : l.loading ? 'MEMUAT' : 'OK'}</Pill>
               <span className="grow"><code>{l.n}</code> · {l.count} rekod{l.error && <> · <span className="danger-text">{explainError(l.error).code}: {explainError(l.error).title}</span></>}</span>
             </li>
           ))}
@@ -305,14 +308,14 @@ function SystemCheck() {
       </Card>
       <Card title="Ujian kebenaran" actions={<Button icon={RefreshCw} onClick={() => run(runTests)}>Jalankan ujian</Button>}>
         {!tests && <p className="muted small">Tekan Jalankan ujian untuk semak akses baca dan tulis mengikut role anda.</p>}
-        {tests && <ul className="syscheck">{tests.map((t) => <li key={t.name}><Pill tone={t.ok ? 'green' : 'red'}>{t.ok ? 'OK' : 'FAIL'}</Pill><span className="grow">{t.name} · {t.detail}{t.link && <> · <a href={t.link} target="_blank" rel="noreferrer">cipta index</a></>}</span></li>)}</ul>}
+        {tests && <ul className="syscheck">{tests.map((t) => <li key={t.name}><Pill tone={t.ok ? 'green' : 'red'}>{t.ok ? 'OK' : 'GAGAL'}</Pill><span className="grow">{t.name} · {t.detail}{t.link && <> · <a href={t.link} target="_blank" rel="noreferrer">cipta index</a></>}</span></li>)}</ul>}
       </Card>
       <Card title="Alat troubleshoot">
         <div className="row gap-sm wrap">
           <Button icon={Copy} onClick={() => { navigator.clipboard?.writeText(report()); setCopied(true); }}>{copied ? 'Disalin' : 'Salin diagnostik'}</Button>
           <Button onClick={toggleDebug}>{debug ? 'Matikan log debug' : 'Hidupkan log debug'}</Button>
         </div>
-        <p className="muted small" style={{ marginTop: 8 }}>Debug log memaparkan setiap bacaan/tulisan Firestore dalam Console (F12). Diagnostics mengandungi 40 log terakhir; tiada kata laluan disertakan.</p>
+        <p className="muted small" style={{ marginTop: 8 }}>Log debug memaparkan setiap bacaan dan tulisan Firestore dalam Console (F12). Diagnostik mengandungi 40 log terakhir; tiada kata laluan disertakan.</p>
       </Card>
     </div>
   );

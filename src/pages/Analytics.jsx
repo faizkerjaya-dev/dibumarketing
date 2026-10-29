@@ -31,7 +31,7 @@ export default function Analytics() {
   const contentRows = useMemo(() => content
     .filter((c) => !c.isSlot && stageOf(config, c.status) === 'published' && inRange(c.publishedDate || c.publishDate, f.from, f.to))
     .filter((c) => (!f.platform || c.platform === f.platform) && (!f.campaignId || c.campaignId === f.campaignId) && (!f.pillar || c.pillar === f.pillar) && (!f.ownerStaffId || c.ownerStaffId === f.ownerStaffId))
-    .map((c) => ({ c, m: latest[c.id] })), [content, f, latest]);
+    .map((c) => ({ c, m: latest[c.id] })), [content, f, latest, config]);
   const cTotals = sumMetrics(contentRows.map((r) => r.m));
   const reviewed = contentRows.filter((r) => r.c.review?.outcome);
 
@@ -71,25 +71,25 @@ export default function Analytics() {
   if (!ready) return <div className="page"><Loading /></div>;
 
   const exportContent = () => downloadCsv(`content_${f.from}_${f.to}.csv`, [
-    { label: 'ID', value: (r) => r.c.code }, { label: 'Title', value: (r) => r.c.title }, { label: 'Platform', value: (r) => r.c.platform }, { label: 'Pillar', value: (r) => r.c.pillar },
-    { label: 'Owner', value: (r) => r.c.ownerName }, { label: 'Campaign', value: (r) => r.c.campaignName }, { label: 'Published', value: (r) => r.c.publishedDate || r.c.publishDate },
-    { label: 'Views', value: (r) => r.m?.views ?? '' }, { label: 'Likes', value: (r) => r.m?.likes ?? '' }, { label: 'Comments', value: (r) => r.m?.comments ?? '' },
-    { label: 'Shares', value: (r) => r.m?.shares ?? '' }, { label: 'Saves', value: (r) => r.m?.saves ?? '' }, { label: 'Engagement rate %', value: (r) => (engagementRate(r.m) == null ? '' : engagementRate(r.m).toFixed(2)) },
-    { label: 'Review', value: (r) => (r.c.review ? findOpt(REVIEW_OUTCOMES, r.c.review.outcome).label : '') }, { label: 'Metrics date', value: (r) => r.m?.date || '' },
+    { label: 'Kod', value: (r) => r.c.code }, { label: 'Tajuk', value: (r) => r.c.title }, { label: 'Platform', value: (r) => r.c.platform }, { label: 'Kategori', value: (r) => r.c.pillar },
+    { label: 'Pemilik', value: (r) => r.c.ownerName }, { label: 'Kempen', value: (r) => r.c.campaignName }, { label: 'Tarikh terbit', value: (r) => r.c.publishedDate || r.c.publishDate },
+    { label: 'Tontonan', value: (r) => r.m?.views ?? '' }, { label: 'Suka', value: (r) => r.m?.likes ?? '' }, { label: 'Komen', value: (r) => r.m?.comments ?? '' },
+    { label: 'Kongsi', value: (r) => r.m?.shares ?? '' }, { label: 'Simpan', value: (r) => r.m?.saves ?? '' }, { label: 'Kadar engagement %', value: (r) => (engagementRate(r.m) == null ? '' : engagementRate(r.m).toFixed(2)) },
+    { label: 'Semakan', value: (r) => (r.c.review ? findOpt(REVIEW_OUTCOMES, r.c.review.outcome).label : '') }, { label: 'Tarikh data', value: (r) => r.m?.date || '' },
   ], contentRows);
-  const exportCampaigns = () => downloadCsv('campaigns.csv', [
-    { label: 'Campaign', value: (r) => r.c.name }, { label: 'Bajet', value: (r) => r.c.budget || 0 }, { label: 'Actual spend', value: (r) => r.s.spend }, { label: 'Remaining', value: (r) => (r.c.budget || 0) - r.s.spend },
-    { label: 'Content published', value: (r) => r.s.published }, { label: 'Content total', value: (r) => r.s.items.length }, { label: 'Deliverables done', value: (r) => r.s.delDone }, { label: 'Deliverables total', value: (r) => r.s.dels.length },
-    { label: 'Views', value: (r) => r.t.views }, { label: 'Engagement', value: (r) => engagement(r.t) }, { label: 'Conversions', value: (r) => r.t.conversions },
+  const exportCampaigns = () => downloadCsv('kempen.csv', [
+    { label: 'Kempen', value: (r) => r.c.name }, { label: 'Bajet', value: (r) => r.c.budget || 0 }, { label: 'Belanja sebenar', value: (r) => r.s.spend }, { label: 'Baki', value: (r) => (r.c.budget || 0) - r.s.spend },
+    { label: 'Content terbit', value: (r) => r.s.published }, { label: 'Jumlah content', value: (r) => r.s.items.length }, { label: 'Deliverable siap', value: (r) => r.s.delDone }, { label: 'Jumlah deliverable', value: (r) => r.s.dels.length },
+    { label: 'Tontonan', value: (r) => r.t.views }, { label: 'Engagement', value: (r) => engagement(r.t) }, { label: 'Conversion', value: (r) => r.t.conversions },
   ], campaignRows);
-  const exportCreators = () => downloadCsv('creators.csv', [
-    { label: 'Creator', value: (r) => r.cr.name }, { label: 'Deliverable', value: (r) => r.dels.length }, { label: 'Done', value: (r) => r.done }, { label: 'Fee', value: (r) => r.fee },
-    { label: 'Views', value: (r) => r.t.views }, { label: 'Engagement', value: (r) => engagement(r.t) }, { label: 'Cost per view', value: (r) => (r.t.views ? (r.fee / r.t.views).toFixed(4) : '') },
-    { label: 'Cost per engagement', value: (r) => (engagement(r.t) ? (r.fee / engagement(r.t)).toFixed(2) : '') }, { label: 'Conversions', value: (r) => r.t.conversions }, { label: 'Sales', value: (r) => r.t.sales },
+  const exportCreators = () => downloadCsv('creator.csv', [
+    { label: 'Creator', value: (r) => r.cr.name }, { label: 'Deliverable', value: (r) => r.dels.length }, { label: 'Siap', value: (r) => r.done }, { label: 'Fee', value: (r) => r.fee },
+    { label: 'Tontonan', value: (r) => r.t.views }, { label: 'Engagement', value: (r) => engagement(r.t) }, { label: 'Kos setiap tontonan', value: (r) => (r.t.views ? (r.fee / r.t.views).toFixed(4) : '') },
+    { label: 'Kos setiap engagement', value: (r) => (engagement(r.t) ? (r.fee / engagement(r.t)).toFixed(2) : '') }, { label: 'Conversion', value: (r) => r.t.conversions }, { label: 'Jualan (RM)', value: (r) => r.t.sales },
   ], creatorRows);
-  const exportStaff = () => downloadCsv(`staff_${f.from}_${f.to}.csv`, [
-    { label: 'Staf', value: (r) => r.s.name }, { label: 'Role', value: (r) => r.s.jobTitle }, { label: 'Assigned', value: (r) => r.assigned }, { label: 'Completed', value: (r) => r.completed },
-    { label: 'Overdue', value: (r) => r.overdue }, { label: 'On time', value: (r) => r.onTime }, { label: 'Estimated hours', value: (r) => r.hours },
+  const exportStaff = () => downloadCsv(`staf_${f.from}_${f.to}.csv`, [
+    { label: 'Staf', value: (r) => r.s.name }, { label: 'Jawatan', value: (r) => r.s.jobTitle }, { label: 'Ditugaskan', value: (r) => r.assigned }, { label: 'Siap', value: (r) => r.completed },
+    { label: 'Lewat', value: (r) => r.overdue }, { label: 'Siap tepat masa', value: (r) => r.onTime }, { label: 'Anggaran jam', value: (r) => r.hours },
   ], staffRows);
 
   return (
@@ -101,31 +101,30 @@ export default function Analytics() {
           <Field label="Hingga"><Input type="date" value={f.to} onChange={set('to')} /></Field>
           <Field label="Platform"><Select value={f.platform} onChange={set('platform')} options={config.platforms} placeholder="Semua" /></Field>
           <Field label="Kempen"><Select value={f.campaignId} onChange={set('campaignId')} options={campaigns.map((c) => ({ value: c.id, label: c.name }))} placeholder="Semua" /></Field>
-          <Field label="Content pillar"><Select value={f.pillar} onChange={set('pillar')} options={config.pillars} placeholder="Semua" /></Field>
-          <Field label="Content owner"><Select value={f.ownerStaffId} onChange={set('ownerStaffId')} options={staff.map((s) => ({ value: s.id, label: s.name }))} placeholder="Semua" /></Field>
+          <Field label="Kategori content"><Select value={f.pillar} onChange={set('pillar')} options={config.pillars} placeholder="Semua" /></Field>
+          <Field label="Pemilik content"><Select value={f.ownerStaffId} onChange={set('ownerStaffId')} options={staff.map((s) => ({ value: s.id, label: s.name }))} placeholder="Semua" /></Field>
           <Field label="Creator"><Select value={f.creatorId} onChange={set('creatorId')} options={creators.map((c) => ({ value: c.id, label: c.name }))} placeholder="Semua" /></Field>
         </div>
       </Card>
-      {metrics.loading && <Loading text="Loading metrics…" />}
+      {metrics.loading && <Loading text="Memuatkan data prestasi…" />}
       <ErrorBox error={metrics.error} />
       <Tabs value={tab} onChange={setTab} tabs={[{ key: 'content', label: 'Content' }, { key: 'campaigns', label: 'Kempen' }, { key: 'creators', label: 'Creator' }, { key: 'staff', label: 'Staf' }]} />
 
       {tab === 'content' && <>
-        <div className="stats">
-          <Stat label="Published content" value={contentRows.length} hint={`${fmtDate(f.from)} – ${fmtDate(f.to)}`} />
-          <Stat label="With performance data" value={cTotals.count} />
-          <Stat label="Total views" value={cTotals.count ? num(cTotals.views) : '—'} />
-          <Stat label="Reach" value={cTotals.reach ? num(cTotals.reach) : '—'} />
+        <div className="stats stats-4">
+          <Stat label="Content terbit" value={contentRows.length} hint={`${fmtDate(f.from)} – ${fmtDate(f.to)} · ${cTotals.count} ada data prestasi`} />
+          <Stat label="Jumlah tontonan" value={cTotals.count ? num(cTotals.views) : '—'} />
+          <Stat label="Capaian" value={cTotals.reach ? num(cTotals.reach) : '—'} />
           <Stat label="Engagement" value={cTotals.count ? num(engagement(cTotals)) : '—'} />
-          <Stat label="Engagement rate" value={cTotals.views ? pct((engagement(cTotals) / cTotals.views) * 100) : '—'} />
-          <Stat label="Shares / Saves" value={cTotals.count ? `${num(cTotals.shares)} / ${num(cTotals.saves)}` : '—'} />
-          <Stat label="Clicks / Conversions" value={cTotals.count ? `${num(cTotals.clicks)} / ${num(cTotals.conversions)}` : '—'} />
-          <Stat label="FYP rate" value={reviewed.length ? `${Math.round((reviewed.filter((r) => r.c.review.outcome === 'fyp').length / reviewed.length) * 100)}%` : '—'} hint={`${reviewed.length} reviewed`} />
+          <Stat label="Kadar engagement" value={cTotals.views ? pct((engagement(cTotals) / cTotals.views) * 100) : '—'} />
+          <Stat label="Kongsi / Simpan" value={cTotals.count ? `${num(cTotals.shares)} / ${num(cTotals.saves)}` : '—'} />
+          <Stat label="Klik / Conversion" value={cTotals.count ? `${num(cTotals.clicks)} / ${num(cTotals.conversions)}` : '—'} />
+          <Stat label="Kadar FYP" value={reviewed.length ? `${Math.round((reviewed.filter((r) => r.c.review.outcome === 'fyp').length / reviewed.length) * 100)}%` : '—'} hint={`${reviewed.length} disemak`} />
         </div>
         <Card title="Content yang terbit" actions={<Button size="sm" icon={Download} onClick={exportContent} disabled={!contentRows.length}>Eksport CSV</Button>}>
           {!contentRows.length ? <Empty title="Tiada content terbit dalam tempoh ini" /> : (
             <div className="table-wrap"><table className="table" style={{ minWidth: 820 }}>
-              <thead><tr><th>Content</th><th>Platform</th><th>Terbit</th><th className="num">Views</th><th className="num">Engagement</th><th className="num">ER</th><th>Semakan</th></tr></thead>
+              <thead><tr><th>Content</th><th>Platform</th><th>Terbit</th><th className="num">Tontonan</th><th className="num">Engagement</th><th className="num">Kadar eng.</th><th>Semakan</th></tr></thead>
               <tbody>{contentRows.map(({ c, m }) => (
                 <tr key={c.id}><td><Link to={`/content/${c.id}?tab=review`}>{c.title}</Link><div className="small muted">{c.code} · {c.ownerName}</div></td><td>{c.platform}</td><td>{fmtDate(c.publishedDate || c.publishDate)}</td>
                   <td className="num">{m ? num(m.views) : '—'}</td><td className="num">{m ? num(engagement(m)) : '—'}</td><td className="num">{pct(engagementRate(m))}</td><td><ReviewPill review={c.review} showNone /></td></tr>
@@ -139,7 +138,7 @@ export default function Analytics() {
         <Card title="Prestasi kempen" subtitle="Bajet dan perbelanjaan sepanjang kempen (tidak ditapis ikut tarikh)." actions={<Button size="sm" icon={Download} onClick={exportCampaigns} disabled={!campaignRows.length}>Eksport CSV</Button>}>
           {!campaignRows.length ? <Empty title="Tiada kempen" /> : (
             <div className="table-wrap"><table className="table" style={{ minWidth: 900 }}>
-              <thead><tr><th>Kempen</th><th className="num">Budget</th><th className="num">Spend</th><th className="num">Remaining</th><th className="num">Content</th><th className="num">Deliverables</th><th className="num">Views</th><th className="num">Engagement</th><th className="num">Conversions</th></tr></thead>
+              <thead><tr><th>Kempen</th><th className="num">Bajet</th><th className="num">Belanja</th><th className="num">Baki</th><th className="num">Content</th><th className="num">Deliverable</th><th className="num">Tontonan</th><th className="num">Engagement</th><th className="num">Conversion</th></tr></thead>
               <tbody>{campaignRows.map(({ c, s, t }) => (
                 <tr key={c.id}><td><Link to={`/campaigns/${c.id}`}>{c.name}</Link></td><td className="num">{money(c.budget)}</td><td className="num">{money(s.spend)}</td><td className={`num${(c.budget || 0) - s.spend < 0 ? ' danger-text' : ''}`}>{money((c.budget || 0) - s.spend)}</td>
                   <td className="num">{s.published}/{s.items.length}</td><td className="num">{s.delDone}/{s.dels.length}</td><td className="num">{t.count ? num(t.views) : '—'}</td><td className="num">{t.count ? num(engagement(t)) : '—'}</td><td className="num">{t.count ? num(t.conversions) : '—'}</td></tr>
@@ -150,10 +149,10 @@ export default function Analytics() {
       )}
 
       {tab === 'creators' && (
-        <Card title="Prestasi creator" subtitle="Cost per view = jumlah fee ÷ views deliverable yang ada data." actions={<Button size="sm" icon={Download} onClick={exportCreators} disabled={!creatorRows.length}>Eksport CSV</Button>}>
+        <Card title="Prestasi creator" subtitle="Kos setiap tontonan = jumlah fee ÷ tontonan deliverable yang ada data." actions={<Button size="sm" icon={Download} onClick={exportCreators} disabled={!creatorRows.length}>Eksport CSV</Button>}>
           {!creatorRows.length ? <Empty title="Tiada deliverable" /> : (
             <div className="table-wrap"><table className="table" style={{ minWidth: 900 }}>
-              <thead><tr><th>Creator</th><th className="num">Deliverables</th><th className="num">Fee</th><th className="num">Views</th><th className="num">ER</th><th className="num">Cost / view</th><th className="num">Cost / engagement</th><th className="num">Conversions</th><th className="num">Sales</th></tr></thead>
+              <thead><tr><th>Creator</th><th className="num">Deliverable</th><th className="num">Fee</th><th className="num">Tontonan</th><th className="num">Kadar eng.</th><th className="num">Kos / tontonan</th><th className="num">Kos / engagement</th><th className="num">Conversion</th><th className="num">Jualan</th></tr></thead>
               <tbody>{creatorRows.map(({ cr, dels, done, fee, t }) => (
                 <tr key={cr.id}><td><Link to={`/creators/${cr.id}`}>{cr.name}</Link></td><td className="num">{done}/{dels.length}</td><td className="num">{money(fee)}</td><td className="num">{t.count ? num(t.views) : '—'}</td>
                   <td className="num">{t.views ? pct((engagement(t) / t.views) * 100) : '—'}</td><td className="num">{t.views && fee ? `RM ${(fee / t.views).toFixed(3)}` : '—'}</td>
@@ -168,10 +167,10 @@ export default function Analytics() {
         <Card title="Operasi staf" subtitle="Tugasan dengan deadline dalam tempoh dipilih. Ini metrik operasi, bukan skor prestasi; kerumitan tugasan berbeza." actions={<Button size="sm" icon={Download} onClick={exportStaff} disabled={!staffRows.length}>Eksport CSV</Button>}>
           {!staffRows.length ? <Empty title="Tiada tugasan dalam tempoh ini" /> : (
             <div className="table-wrap"><table className="table" style={{ minWidth: 760 }}>
-              <thead><tr><th>Staf</th><th className="num">Assigned</th><th className="num">Completed</th><th className="num">Overdue</th><th className="num">On-time completion</th><th className="num">Est. hours</th></tr></thead>
+              <thead><tr><th>Staf</th><th className="num">Ditugaskan</th><th className="num">Siap</th><th className="num">Lewat</th><th className="num">Siap tepat masa</th><th className="num">Anggaran jam</th></tr></thead>
               <tbody>{staffRows.map((r) => (
                 <tr key={r.s.id}><td><Link to={`/team/${r.s.id}`}>{r.s.name}</Link><div className="small muted">{r.s.jobTitle}</div></td><td className="num">{r.assigned}</td><td className="num">{r.completed}</td>
-                  <td className={`num${r.overdue ? ' danger-text' : ''}`}>{r.overdue}</td><td className="num">{r.completed ? `${Math.round((r.onTime / r.completed) * 100)}%` : '—'}</td><td className="num">{r.hours}h</td></tr>
+                  <td className={`num${r.overdue ? ' danger-text' : ''}`}>{r.overdue}</td><td className="num">{r.completed ? `${Math.round((r.onTime / r.completed) * 100)}%` : '—'}</td><td className="num">{r.hours} jam</td></tr>
               ))}</tbody>
             </table></div>
           )}

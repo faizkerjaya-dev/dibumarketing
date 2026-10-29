@@ -52,13 +52,13 @@ export default function Deliverables() {
         <SearchInput value={f.q} onChange={(q) => setF({ ...f, q })} placeholder="Cari creator atau jenis" />
         <Select value={f.campaignId} onChange={set('campaignId')} options={campaigns.map((c) => ({ value: c.id, label: c.name }))} placeholder="Semua kempen" />
         <Select value={f.creatorId} onChange={set('creatorId')} options={creators.map((c) => ({ value: c.id, label: c.name }))} placeholder="Semua creator" />
-        <Select value={f.status} onChange={set('status')} options={[{ value: 'open', label: 'Open (not done)' }, ...DELIVERABLE_STATUSES.map((s) => ({ value: s.key, label: s.label }))]} placeholder="Semua status" />
-        <Select value={f.due} onChange={set('due')} options={[{ value: 'overdue', label: 'Overdue' }, { value: '7', label: 'Due in 7 days' }, { value: '30', label: 'Due in 30 days' }]} placeholder="Semua tarikh" />
+        <Select value={f.status} onChange={set('status')} options={[{ value: 'open', label: 'Belum siap' }, ...DELIVERABLE_STATUSES.map((s) => ({ value: s.key, label: s.label }))]} placeholder="Semua status" />
+        <Select value={f.due} onChange={set('due')} options={[{ value: 'overdue', label: 'Lewat' }, { value: '7', label: 'Dalam 7 hari' }, { value: '30', label: 'Dalam 30 hari' }]} placeholder="Semua tarikh" />
       </div>
       <Card>
         {!rows.length ? <Empty title="Tiada deliverable" text="Tambah creator ke kempen, kemudian cipta deliverable." /> : (
           <div className="table-wrap"><table className="table" style={{ minWidth: 900 }}>
-            <thead><tr><th>Deliverable</th><th>Creator</th><th>Kempen</th><th>Draft due</th><th>Approval due</th><th>Publish due</th><th className="num">Rev.</th><th>Status</th></tr></thead>
+            <thead><tr><th>Deliverable</th><th>Creator</th><th>Kempen</th><th>Draf siap</th><th>Approval</th><th>Terbit</th><th className="num">Pembetulan</th><th>Status</th></tr></thead>
             <tbody>{rows.map((d) => {
               const late = d.draftDue && d.draftDue < t0 && ['brief_sent', 'in_production', 'revision'].includes(d.status);
               return (

@@ -22,7 +22,7 @@ export function rateLabel(c) {
   if (r.video) return `${money(r.video)} / video`;
   if (r.reel) return `${money(r.reel)} / reel`;
   if (r.ugc) return `${money(r.ugc)} / UGC`;
-  if (r.affiliatePct) return `${r.affiliatePct}% commission`;
+  if (r.affiliatePct) return `${r.affiliatePct}% komisen`;
   return '—';
 }
 
@@ -63,6 +63,7 @@ export default function Creators() {
   }, [creators, type, f, sort, showArchived]);
 
   if (!ready) return <div className="page"><Loading /></div>;
+  const visible = creators.filter((c) => showArchived || (!c.archived && c.status !== 'archived'));
   const pages = Math.max(1, Math.ceil(list.length / PAGE));
   const rows = list.slice(page * PAGE, page * PAGE + PAGE);
   const setFilter = (k) => (e) => { setF({ ...f, [k]: e.target.value }); setPage(0); };
@@ -73,7 +74,7 @@ export default function Creators() {
       <div className="chips">
         {['', ...MAIN_TYPES].map((t) => (
           <button key={t || 'all'} type="button" className={`chip${type === t ? ' on' : ''}`} onClick={() => { setType(t); setPage(0); }}>
-            {t || 'All'} <span className="muted">{t ? creators.filter((c) => (c.tags || []).includes(t)).length : creators.length}</span>
+            {t || 'Semua'} <span className="muted">{(t ? visible.filter((c) => (c.tags || []).includes(t)) : visible).length}</span>
           </button>
         ))}
       </div>
@@ -82,13 +83,13 @@ export default function Creators() {
         <Select value={f.platform} onChange={setFilter('platform')} options={config.platforms} placeholder="Semua platform" />
         <Select value={f.niche} onChange={setFilter('niche')} options={config.creatorTags.filter((t) => !MAIN_TYPES.includes(t))} placeholder="Semua niche" />
         <Select value={f.status} onChange={setFilter('status')} options={CREATOR_STATUSES} placeholder="Semua status" />
-        <Select value={sort} onChange={(e) => setSort(e.target.value)} options={[{ value: 'name', label: 'Sort: name' }, { value: 'followers', label: 'Sort: followers' }, { value: 'er', label: 'Sort: engagement' }]} />
-        <label className="check"><input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />Archived</label>
+        <Select value={sort} onChange={(e) => setSort(e.target.value)} options={[{ value: 'name', label: 'Susun: nama' }, { value: 'followers', label: 'Susun: pengikut' }, { value: 'er', label: 'Susun: engagement' }]} />
+        <label className="check"><input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />Tunjuk arkib</label>
       </div>
       <Card>
         {!rows.length ? <Empty title="Tiada creator dijumpai" text="Tukar penapis atau tambah creator baru." /> : (
           <div className="table-wrap"><table className="table" style={{ minWidth: 860 }}>
-            <thead><tr><th>Creator</th><th>Platform utama</th><th>Jenis</th><th className="num">Followers</th><th className="num">Eng. rate</th><th>Kadar</th><th>Status</th><th className="num">Active campaigns</th></tr></thead>
+            <thead><tr><th>Creator</th><th>Platform utama</th><th>Jenis</th><th className="num">Pengikut</th><th className="num">Kadar eng.</th><th>Kadar</th><th>Status</th><th className="num">Kempen aktif</th></tr></thead>
             <tbody>{rows.map((c) => {
               const m = mainSocial(c);
               return (
@@ -107,7 +108,7 @@ export default function Creators() {
           </table></div>
         )}
         <div className="row wrap gap-sm" style={{ justifyContent: 'space-between', marginTop: 12 }}>
-          <span className="muted small">Showing {list.length ? page * PAGE + 1 : 0}–{Math.min((page + 1) * PAGE, list.length)} of {list.length}</span>
+          <span className="muted small">Menunjukkan {list.length ? page * PAGE + 1 : 0}–{Math.min((page + 1) * PAGE, list.length)} daripada {list.length}</span>
           <span className="row gap-sm"><Button size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Sebelum</Button><Button size="sm" disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>Seterusnya</Button></span>
         </div>
       </Card>

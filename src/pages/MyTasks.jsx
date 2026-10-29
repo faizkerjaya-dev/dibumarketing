@@ -15,7 +15,7 @@ import { PageHeader, Card, Button, Pill, Field, Input, Textarea, Loading, Empty,
 import { TaskStatusPill } from '../components/pills';
 
 export default function MyTasks() {
-  const { tasks, contentById, ready } = useData();
+  const { tasks, contentById, staffById, ready } = useData();
   const { profile } = useAuth();
   const config = useConfig();
   const { run } = useToast();
@@ -62,7 +62,7 @@ export default function MyTasks() {
   const dueToday = mine.filter((t) => t.status !== 'done' && t.deadline === t0).length;
 
   const submitIdea = async () => {
-    const ok = await run(() => addIdea({ text: idea, platform: '', statusKey: statusForStage(config, 'idea') }, { profile }), 'Idea dihantar');
+    const ok = await run(() => addIdea({ text: idea, platform: '', statusKey: statusForStage(config, 'idea') }, { profile, staffById }), 'Idea dihantar');
     if (ok) setIdea('');
   };
 
@@ -90,7 +90,7 @@ export default function MyTasks() {
                       <strong className="block">{t.contentTitle || t.description || 'Tugasan'}</strong>
                       <span className="small muted">{[t.contentCode, t.campaignName].filter(Boolean).join(' · ')}</span>
                     </span>
-                    <span className={late ? 'danger-text small' : 'small strong'}>{relDue(t.deadline)}</span>
+                    <span className={late ? 'danger-text small' : 'small strong'}>{t.status === 'done' ? `Siap ${fmtDate(t.completedAt)}` : relDue(t.deadline)}</span>
                     <TaskStatusPill value={t.status} />
                   </button>
                 );
@@ -99,8 +99,8 @@ export default function MyTasks() {
           ))}
 
           <Card title="Hantar idea" subtitle="Idea anda masuk Bank idea. Ketua akan jadualkan tarikhnya.">
-            <div className="row gap-sm wrap">
-              <Input value={idea} onChange={(e) => setIdea(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && idea.trim() && submitIdea()} placeholder="Contoh: mitos garam untuk bayi" />
+            <div className="row gap-sm">
+              <Input style={{ flex: 1 }} value={idea} onChange={(e) => setIdea(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && idea.trim() && submitIdea()} placeholder="Contoh: mitos garam untuk bayi" />
               <Button icon={Lightbulb} disabled={!idea.trim()} onClick={submitIdea}>Hantar</Button>
             </div>
           </Card>
@@ -144,7 +144,7 @@ export default function MyTasks() {
                     <h3>Link</h3>
                     {(content.links || []).map((l) => <a key={l.id} href={l.url} target="_blank" rel="noreferrer" className="row gap-sm small"><ExternalLink size={14} />{l.label}</a>)}
                     <Field label="Link draf atau raw footage"><Input type="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://drive.google.com/…" /></Field>
-                    <Button size="sm" disabled={!link} onClick={async () => { const ok = await run(() => addLink(content, { url: link, label: `${findOpt(TASK_ROLES, selected.role).label} · ${profile.name}`, category: 'Draf' }, profile), 'Link ditambah'); if (ok) setLink(''); }}>Tambah link</Button>
+                    <Button size="sm" className="self-start" disabled={!link} onClick={async () => { const ok = await run(() => addLink(content, { url: link, label: `${findOpt(TASK_ROLES, selected.role).label} · ${profile.name}`, category: 'Draf' }, profile), 'Link ditambah'); if (ok) setLink(''); }}>Tambah link</Button>
                   </div>
                 )}
 
@@ -155,7 +155,7 @@ export default function MyTasks() {
                   {selected.status === 'done' && <Button size="sm" onClick={() => run(() => updateOwnTask(selected, { status: 'in_progress' }, profile), 'Dibuka semula')}>Buka semula</Button>}
                 </div>
                 {selected.status !== 'done' && <Button variant="primary" icon={CheckCircle2} onClick={() => run(() => updateOwnTask(selected, { status: 'done' }, profile), 'Ditanda siap')}>Tanda {findOpt(TASK_ROLES, selected.role).label.toLowerCase()} siap</Button>}
-                {content && <Link to={`/content/${content.id}`} className="small">Buka halaman penuh content</Link>}
+                {content && <Link to={`/content/${content.id}`} className="small">Buka halaman penuh content →</Link>}
               </div>
             </Card>
           </div>

@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { saveTask, deleteTask } from '../lib/db';
 import { assignWarnings, staffWorkload, BANDS } from '../lib/workload';
 import { TASK_ROLES, TASK_STATUSES, PRIORITIES } from '../lib/constants';
+import { fmtDateTime } from '../lib/dates';
 import { Modal, Button, Field, Input, Select, Textarea, useConfirm } from './ui';
 
 const EMPTY = { contentId: '', staffId: '', role: 'shooting', description: '', deadline: '', priority: 'medium', status: 'todo', estHours: '', notes: '' };
@@ -32,7 +33,7 @@ export default function TaskModal({ open, onClose, task, presetContentId, preset
     const w = staffWorkload(s, tasks);
     return { value: s.id, label: `${s.name} · ${s.jobTitle || ''} · ${w.pct != null ? `${w.pct}%` : BANDS[w.band].label}` };
   });
-  const contentOptions = content.filter((c) => !c.archived && c.status !== 'archived').map((c) => ({ value: c.id, label: `${c.code} · ${c.title}` }));
+  const contentOptions = content.filter((c) => !c.archived && c.status !== 'archived').map((c) => ({ value: c.id, label: `${c.code} · ${c.title || c.slotLabel || 'Slot kosong'}` }));
 
   const save = async () => {
     if (warnings.length && !ack) return;
@@ -43,7 +44,7 @@ export default function TaskModal({ open, onClose, task, presetContentId, preset
   };
 
   const remove = async () => {
-    if (!(await confirm('Padam tugasan ini? Content tidak terjejas.', { title: 'Delete task', okLabel: 'Delete', danger: true }))) return;
+    if (!(await confirm('Padam tugasan ini? Content tidak terjejas.', { title: 'Padam tugasan', okLabel: 'Padam', danger: true }))) return;
     const ok = await run(() => deleteTask(task, { staffById }), 'Tugasan dipadam');
     if (ok) onClose();
   };
@@ -69,7 +70,7 @@ export default function TaskModal({ open, onClose, task, presetContentId, preset
         <Field label="Anggaran jam" hint="Digunakan untuk kira beban kerja."><Input type="number" min="0" step="0.5" value={form.estHours} onChange={set('estHours')} /></Field>
         <Field label="Keutamaan"><Select value={form.priority} onChange={set('priority')} options={PRIORITIES} /></Field>
         <Field label="Status"><Select value={form.status} onChange={set('status')} options={TASK_STATUSES} /></Field>
-        <Field label="Keterangan" full><Input value={form.description} onChange={set('description')} placeholder="Shoot unboxing, 3 angles" /></Field>
+        <Field label="Keterangan" full><Input value={form.description} onChange={set('description')} placeholder="Shoot unboxing, 3 sudut" /></Field>
         <Field label="Nota" full><Textarea value={form.notes} onChange={set('notes')} rows={2} /></Field>
       </div>
       {warnings.length > 0 && (
@@ -84,7 +85,7 @@ export default function TaskModal({ open, onClose, task, presetContentId, preset
       {task?.history?.length > 0 && (
         <details>
           <summary className="small strong">Sejarah tugasan ({task.history.length})</summary>
-          <ul className="small muted">{task.history.slice().reverse().map((h, i) => <li key={i}>{new Date(h.at).toLocaleString('en-MY')} · {h.by}: {h.text}</li>)}</ul>
+          <ul className="small muted">{task.history.slice().reverse().map((h, i) => <li key={i}>{fmtDateTime(h.at)} · {h.by}: {h.text}</li>)}</ul>
         </details>
       )}
       {confirmEl}

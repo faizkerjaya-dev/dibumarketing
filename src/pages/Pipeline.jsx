@@ -1,13 +1,14 @@
 // Papan kerja content. Seret kad ke lajur lain untuk tukar status.
 // Lajur mengikut status dalam Tetapan, jadi pasukan boleh ubah sendiri.
 import { useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Clock } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigContext';
 import { can } from '../lib/permissions';
-import { statusList, stageOf, isArchived } from '../lib/statuses';
+import { statusList, stageOf, isArchived, findStatus, statusForStage } from '../lib/statuses';
+import { TASK_ROLES, findOpt } from '../lib/constants';
 import { today, fmtDate } from '../lib/dates';
 import { staffWorkload } from '../lib/workload';
 import { PageHeader, Button, Avatar, Loading, Select, IconButton } from '../components/ui';
@@ -22,7 +23,6 @@ export default function Pipeline() {
   const { content, tasks, staff, ready } = useData();
   const { profile } = useAuth();
   const config = useConfig();
-  const navigate = useNavigate();
   const [params] = useSearchParams();
   const [moveTo, moveEl] = useStatusChange();
   const [filters, setFilters] = useState(EMPTY_FILTERS);
@@ -62,6 +62,12 @@ export default function Pipeline() {
 
   if (!ready) return <div className="page"><Loading /></div>;
 
+  // Status lama atau yang sudah dibuang dari Tetapan dipaparkan dalam lajur pertama peringkat yang sama.
+  const columnOf = (c) => {
+    const st = findStatus(config, c.status);
+    return st.unknown ? statusForStage(config, st.stage) : st.key;
+  };
+
   const onDrop = (statusKey) => {
     setOver(null);
     const c = content.find((x) => x.id === drag);
@@ -83,7 +89,8 @@ export default function Pipeline() {
       <div className="board">
         <div className="board-inner">
           {columns.map((col) => {
-            const cards = list.filter((c) => c.status === col.key);
+            // findStatus memetakan status lama / tidak dikenali ke lajur yang betul, supaya tiada kad "hilang".
+            const cards = list.filter((c) => columnOf(c) === col.key);
             return (
               <section
                 key={col.key}
@@ -104,7 +111,7 @@ export default function Pipeline() {
                   const nt = nextTask[c.id];
                   const published = stageOf(config, c.status) === 'published';
                   const late = !published && ((nt && nt.deadline < t0) || (c.publishDate && c.publishDate < t0));
-                  const dueLabel = nt ? `${nt.role} ${fmtDate(nt.deadline)}` : c.publishDate ? `Terbit ${fmtDate(c.publishDate)}` : 'Tiada tarikh';
+                  const dueLabel = nt ? `${findOpt(TASK_ROLES, nt.role).label} ${fmtDate(nt.deadline)}` : c.publishDate ? `Terbit ${fmtDate(c.publishDate)}` : 'Tiada tarikh';
                   return (
                     <Link
                       key={c.id}
@@ -114,14 +121,14 @@ export default function Pipeline() {
                       onDragStart={() => setDrag(c.id)}
                       onDragEnd={() => setDrag(null)}
                     >
-                      <div className="row" style={{ justifyContent: 'space-between' }}><span className="small muted strong">{c.code}</span><PriorityPill value={c.priority} /></div>
+                      <div className="row" style={{ justifyContent: 'space-between' }}><span className="small muted strong">{c.code}</span>{c.priority && <PriorityPill value={c.priority} />}</div>
                       <div className="strong" style={{ lineHeight: 1.35 }}>{c.title || <span className="muted">{c.slotLabel || 'Slot kosong'}</span>}</div>
                       <div className="row gap-xs wrap">{c.platform && <span className="tag">{c.platform}</span>}{c.campaignName && <span className="tag">{c.campaignName}</span>}</div>
                       {published && <div><ReviewPill review={c.review} showNone /></div>}
                       <div className="kcard-foot">
                         <span className={`row gap-xs small strong${late ? ' danger-text' : ' muted'}`}><Clock size={13} />{late ? 'Lewat · ' : ''}{dueLabel}</span>
                         <span className="avatars">
-                          {(c.assigneeStaffIds || []).slice(0, 4).map((sid) => {
+                          {[...new Set(c.assigneeStaffIds || [])].slice(0, 4).map((sid) => {
                             const st = staff.find((x) => x.id === sid);
                             return <Avatar key={sid} name={st?.name || '?'} size={24} warn={overloaded.has(sid)} />;
                           })}

@@ -8,7 +8,7 @@ import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
 import { createSlots, fillSlot, deleteSlots } from '../lib/db';
 import { statusForStage } from '../lib/statuses';
-import { today, addDays, toISODate, parseDate, fmtDate } from '../lib/dates';
+import { addDays, toISODate, parseDate, fmtDate } from '../lib/dates';
 import { Modal, Button, Field, Input, Select, Empty, useConfirm } from './ui';
 
 const DAYS = ['Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab', 'Ahd'];

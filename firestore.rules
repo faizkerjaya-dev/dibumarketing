@@ -32,8 +32,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Kaunter kod (DBU-0001, CMP-0001...). Semua staf aktif boleh hantar idea, jadi kaunter
+    // 'content' boleh dinaikkan oleh sesiapa yang aktif. Kaunter lain untuk pengurus sahaja.
     match /counters/{id} {
-      allow read, write: if hasAny(['admin', 'marketing_manager', 'content_manager', 'creator_manager']);
+      allow read, write: if hasAny(['admin', 'marketing_manager', 'content_manager', 'creator_manager'])
+        || (isActive() && id == 'content');
     }
 
     match /staff/{id} {
@@ -52,7 +55,8 @@ service cloud.firestore {
         || (isActive()
             && request.resource.data.get('publishDate', '') == ''
             && request.resource.data.get('isSlot', false) == false
-            && request.resource.data.get('publishUrl', '') == '');
+            && request.resource.data.get('publishUrl', '') == ''
+            && request.resource.data.get('assigneeUids', []).hasOnly([request.auth.uid]));
       allow update: if managers()
         || (hasAny(['content_manager']) && !changes(['review']))
         || (isActive() && request.auth.uid in resource.data.assigneeUids && changedOnly(['checklist', 'links', 'updatedAt', 'updatedBy']));

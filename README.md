@@ -171,3 +171,22 @@ Mula di **Tetapan › Semakan sistem**: status setiap koleksi data, ujian kebena
 - **Prestasi diisi manual.** Tiada sambungan API TikTok atau Instagram. Medan purata masa tonton dan peratus tonton penuh belum ada.
 - **Padam akaun login** dibuat dalam Firebase Console. Dalam app, Admin hanya boleh nyahaktifkan akaun.
 - **Rancang sebulan** dihadkan 400 slot setiap kali.
+
+## 12. Perubahan v3.1 (kemas kini)
+
+**Pembetulan bug**
+- Panel Tambah/Edit content tidak lagi crash bila dibuka kali pertama.
+- Content Creator kini boleh hantar idea (rules `counters` dibetulkan). **Tampal semula `firestore.rules` dan Publish.**
+- "Content baharu" dari halaman kempen kini terus pilih kempen itu.
+- Butang Edit pada bahagian Brief betul-betul buka editor.
+- Content dengan status lama / status yang sudah dibuang tidak lagi hilang dari Papan kerja.
+- Panel Brief menyemak syarat status (contoh: Terbit perlukan link post) sebelum simpan.
+- Notifikasi tukar status diikat pada peringkat, bukan nama status.
+- "Kembali ke asal" di Tetapan › Umum tidak lagi memadam status content.
+- Padam content turut memadam tugasan berkaitan. Content arkib boleh dipulihkan.
+- Semua operasi pukal (slot, notifikasi, nama kempen) dipecah ikut had 500 Firestore dan ditunggu sehingga selesai.
+
+**Kemasan**
+- Semua teks antara muka dalam Bahasa Malaysia, termasuk tarikh (contoh: Sel, 27 Okt).
+- Butang Log keluar di sidebar kini kelihatan; sidebar kecil dipaparkan kemas.
+- Dashboard, kalendar, halaman content dan kempen disusun semula supaya lebih kemas.

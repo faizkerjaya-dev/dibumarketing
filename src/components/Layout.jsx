@@ -136,22 +136,29 @@ export default function Layout() {
   const { errors } = useData();
   const notif = useNotifications();
   const [drawer, setDrawer] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('dibu_sidebar') === 'collapsed');
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('dibu_sidebar') === 'collapsed'; } catch { return false; }
+  });
   const location = useLocation();
   const items = navItems(profile);
   const creatorOnly = isCreatorOnly(profile);
   const dataErrors = Object.entries(errors).filter(([, e]) => e);
 
   useEffect(() => setDrawer(false), [location.pathname]);
-  useEffect(() => localStorage.setItem('dibu_sidebar', collapsed ? 'collapsed' : 'open'), [collapsed]);
+  useEffect(() => {
+    try { localStorage.setItem('dibu_sidebar', collapsed ? 'collapsed' : 'open'); } catch { /* mod privasi: abaikan */ }
+  }, [collapsed]);
 
   const sidebar = (
     <>
       <div className="brand">
-        <span className="brand-name">{config.brandName}</span>
-        <span className="brand-sub">Ruang kerja content</span>
+        <span className="brand-mark" aria-hidden="true">{(config.brandName || 'D').trim().charAt(0).toUpperCase()}</span>
+        <span className="brand-text">
+          <span className="brand-name">{config.brandName}</span>
+          <span className="brand-sub">Ruang kerja content</span>
+        </span>
       </div>
-      <nav aria-label="Main" className="nav">
+      <nav aria-label="Menu utama" className="nav">
         {items.map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} title={label}>
             <Icon size={18} /><span className="nav-label">{label}</span>
@@ -164,7 +171,7 @@ export default function Layout() {
           <div className="side-user-name">{profile?.name || profile?.email}</div>
           <div className="side-user-role">{profile?.roles?.map((r) => ROLES[r] || r).join(', ')}</div>
         </div>
-        <button type="button" className="icon-btn on-dark" aria-label="Log keluar" title="Log keluar" onClick={logout}><LogOut size={16} /></button>
+        <button type="button" className="icon-btn side-logout" aria-label="Log keluar" title="Log keluar" onClick={logout}><LogOut size={16} /></button>
       </div>
     </>
   );
@@ -173,21 +180,21 @@ export default function Layout() {
     <div className={`app${collapsed ? ' collapsed' : ''}`}>
       <aside className="sidebar">
         {sidebar}
-        <button type="button" className="collapse-btn" onClick={() => setCollapsed((c) => !c)} aria-label={collapsed ? 'Buka menu' : 'Tutup menu'}>
+        <button type="button" className="collapse-btn" onClick={() => setCollapsed((c) => !c)} aria-label={collapsed ? 'Kembangkan menu' : 'Kecilkan menu'} title={collapsed ? 'Kembangkan menu' : 'Kecilkan menu'}>
           {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
         </button>
       </aside>
       {drawer && (
         <div className="drawer-overlay" onMouseDown={(e) => e.target === e.currentTarget && setDrawer(false)}>
           <aside className="drawer">
-            <button type="button" className="icon-btn on-dark drawer-close" aria-label="Tutup menu" onClick={() => setDrawer(false)}><X size={20} /></button>
+            <button type="button" className="icon-btn drawer-close" aria-label="Tutup menu" onClick={() => setDrawer(false)}><X size={20} /></button>
             {sidebar}
           </aside>
         </div>
       )}
       <div className="main-col">
         <div className="mobilebar">
-          <button type="button" className="icon-btn on-dark" aria-label="Buka menu" onClick={() => setDrawer(true)}><Menu size={22} /></button>
+          <button type="button" className="icon-btn" aria-label="Buka menu" onClick={() => setDrawer(true)}><Menu size={22} /></button>
           <span className="grow brand-name">{config.brandName}</span>
           <NotificationBell n={notif} />
         </div>
@@ -199,7 +206,7 @@ export default function Layout() {
         </header>
         {dataErrors.length > 0 && (
           <div className="data-warning">
-            Sebahagian data gagal dimuatkan ({dataErrors.map(([n, e]) => `${n}: ${e.code || e.message}`).join(', ')}). Semak Tetapan › Semakan sistem.
+            Sebahagian data gagal dimuatkan ({dataErrors.map(([n, e]) => `${n}: ${e.code || e.message}`).join(', ')}). {can(profile, 'view.all') ? <Link to="/settings">Semak Tetapan › Semakan sistem</Link> : 'Hubungi Admin.'}
           </div>
         )}
         <main className="content-area"><Outlet /></main>

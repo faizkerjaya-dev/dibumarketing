@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { collection, query, where } from 'firebase/firestore';
-import { ExternalLink, Pencil, Plus, Trash2, Archive, BarChart3, ChevronRight, CalendarDays, Hash, User, Flag, Megaphone } from 'lucide-react';
+import { ExternalLink, Pencil, Plus, Trash2, Archive, ArchiveRestore, BarChart3, ChevronRight, CalendarDays, Hash, User, Flag, Megaphone } from 'lucide-react';
 import { db } from '../firebase';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -11,12 +11,12 @@ import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
 import { useQuery } from '../hooks/useFirestore';
 import { can, isCreatorOnly } from '../lib/permissions';
-import { updateById, removeById, updateOwnTask, addLink, removeLink, saveReview, logActivity } from '../lib/db';
-import { statusList, findStatus, stageOf, statusForStage, STAGES } from '../lib/statuses';
+import { updateById, deleteContent, updateOwnTask, addLink, removeLink, saveReview, logActivity } from '../lib/db';
+import { statusList, stageOf, statusForStage, findStatus, STAGES } from '../lib/statuses';
 import { TASK_ROLES, TASK_STATUSES, REVIEW_OUTCOMES, METRIC_FIELDS, findOpt, slug, num } from '../lib/constants';
 import { fmtDate, fmtDateTime, relDue, today, addDays } from '../lib/dates';
 import { latestByTarget, engagementRate, pct } from '../lib/metrics';
-import { PageHeader, Card, Button, Pill, Avatar, Bar, Field, Input, Select, Textarea, Empty, Loading, ErrorBox, useConfirm } from '../components/ui';
+import { PageHeader, Button, Pill, Avatar, Bar, Field, Input, Select, Textarea, Empty, Loading, ErrorBox, useConfirm } from '../components/ui';
 import { ContentStatusPill, PriorityPill, TaskStatusPill, ReviewPill } from '../components/pills';
 import TaskModal from '../components/TaskModal';
 import CommentThread from '../components/CommentThread';
@@ -30,17 +30,20 @@ const BRIEF_FIELDS = [
   ['cta', 'Call to action'], ['hashtags', 'Hashtag'], ['references', 'Link rujukan'], ['notes', 'Nota'],
 ];
 
+// Bahagian boleh buka/tutup. Butang tindakan (contoh Edit) diletak DI LUAR butang buka/tutup,
+// supaya klik Edit betul-betul buka editor dan bukan sekadar tutup bahagian ini.
 function Fold({ title, hint, hintTone = 'gray', action, children, defaultOpen }) {
   const [open, setOpen] = useState(!!defaultOpen);
   return (
     <section className={`fold${open ? ' open' : ''}`}>
-      <button type="button" className="fold-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <ChevronRight size={15} className="fold-caret" />
-        <span className="strong" style={{ fontSize: 14 }}>{title}</span>
-        {hint && <Pill tone={hintTone}>{hint}</Pill>}
-        <span className="grow" />
-        {action}
-      </button>
+      <div className="fold-head-row">
+        <button type="button" className="fold-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+          <ChevronRight size={15} className="fold-caret" />
+          <span className="strong" style={{ fontSize: 14 }}>{title}</span>
+          {hint && <Pill tone={hintTone}>{hint}</Pill>}
+        </button>
+        {action && <div className="fold-action">{action}</div>}
+      </div>
       {open && <div className="fold-body">{children}</div>}
     </section>
   );
@@ -65,7 +68,6 @@ function Stepper({ status }) {
 function ReviewBlock({ content }) {
   const { profile } = useAuth();
   const { staff, staffById, contentById } = useData();
-  const config = useConfig();
   const { run } = useToast();
   const canReview = can(profile, 'content.review');
   const creatorOnly = isCreatorOnly(profile);
@@ -182,9 +184,14 @@ export default function ContentDetail() {
       await logActivity(profile, { type: 'content_archived', message: `${profile.name} arkibkan “${content.title}”`, refType: 'content', refId: content.id });
     }, 'Diarkibkan');
   };
+  const restore = () => run(async () => {
+    await updateById('content', content.id, { archived: false, status: statusForStage(config, 'idea', content.status) }, profile);
+    await logActivity(profile, { type: 'content_restored', message: `${profile.name} pulihkan “${content.title}” dari arkib`, refType: 'content', refId: content.id });
+  }, 'Content dipulihkan');
   const remove = async () => {
-    if (!(await confirm(`Padam terus “${content.title}”? Tugasan berkaitan tidak dipadam. Cadangan: guna Arkib.`, { title: 'Padam kekal', okLabel: 'Padam', danger: true }))) return;
-    const ok = await run(() => removeById('content', content.id), 'Dipadam');
+    const n = myTasks.length;
+    if (!(await confirm(`Padam terus “${content.title || content.slotLabel || content.code}”?${n ? ` ${n} tugasan berkaitan juga akan dipadam.` : ''}\n\nTindakan ini tidak boleh dibatalkan. Cadangan: guna Arkib.`, { title: 'Padam kekal', okLabel: 'Padam', danger: true }))) return;
+    const ok = await run(() => deleteContent(content), 'Content dipadam');
     if (ok) navigate('/calendar');
   };
   const addTheLink = async () => {
@@ -198,27 +205,27 @@ export default function ContentDetail() {
         crumb={<><Link to={creatorOnly ? '/my-tasks' : '/calendar'}>{creatorOnly ? 'Hari ini' : 'Kalendar'}</Link> / {content.code}</>}
         title={content.title || content.slotLabel || 'Slot kosong'}
         actions={canEdit && <>
-          <Select value={content.status} onChange={(e) => moveTo(content, e.target.value)} options={statusList(config)} aria-label="Tukar status" style={{ width: 150 }} />
+          <Select value={findStatus(config, content.status).key} onChange={(e) => moveTo(content, e.target.value)} options={statusList(config)} aria-label="Tukar status" style={{ width: 160 }} />
           <Button icon={Pencil} onClick={() => setEditOpen(true)}>Edit</Button>
-          {!content.archived && <Button icon={Archive} onClick={archive}>Arkib</Button>}
+          {content.archived ? <Button icon={ArchiveRestore} onClick={restore}>Pulihkan</Button> : <Button icon={Archive} onClick={archive}>Arkib</Button>}
           {can(profile, 'content.delete') && <Button variant="danger" icon={Trash2} onClick={remove}>Padam</Button>}
         </>}
-      >
-        <div className="chips" style={{ marginTop: 10 }}>
-          {chip(<CalendarDays size={13} />, content.publishDate ? `${fmtDate(content.publishDate, { weekday: 'short' })}${content.publishTime ? `, ${content.publishTime}` : ''}` : 'Tiada tarikh', canEdit ? () => setEditOpen(true) : null)}
-          {chip(<Hash size={13} />, content.platform || 'Platform?', canEdit ? () => setEditOpen(true) : null)}
-          {chip(<User size={13} />, content.ownerName || 'Tiada pemilik', canEdit ? () => setEditOpen(true) : null)}
-          {content.pillar && chip(<Flag size={13} />, content.pillar, canEdit ? () => setEditOpen(true) : null)}
-          {content.campaignName && chip(<Megaphone size={13} />, content.campaignName, () => navigate(`/campaigns/${content.campaignId}`))}
-          <ContentStatusPill value={content.status} />
-          <PriorityPill value={content.priority} />
-          <ReviewPill review={content.review} />
-        </div>
-      </PageHeader>
+      />
+      <div className="chips meta-chips">
+        {chip(<CalendarDays size={13} />, content.publishDate ? `${fmtDate(content.publishDate, { weekday: 'short' })}${content.publishTime ? `, ${content.publishTime}` : ''}` : 'Tiada tarikh', canEdit ? () => setEditOpen(true) : null)}
+        {chip(<Hash size={13} />, content.platform || 'Platform?', canEdit ? () => setEditOpen(true) : null)}
+        {chip(<User size={13} />, content.ownerName || 'Tiada pemilik', canEdit ? () => setEditOpen(true) : null)}
+        {content.pillar && chip(<Flag size={13} />, content.pillar, canEdit ? () => setEditOpen(true) : null)}
+        {content.campaignName && chip(<Megaphone size={13} />, content.campaignName, () => navigate(`/campaigns/${content.campaignId}`))}
+        <ContentStatusPill value={content.status} />
+        {content.priority && <PriorityPill value={content.priority} />}
+        <ReviewPill review={content.review} />
+        {content.archived && <span className="pill tone-gray">Diarkibkan</span>}
+      </div>
 
       <Stepper status={content.status} />
 
-      <Fold title="Brief dan skrip" hint={content.brief?.hook ? 'Hook sudah ditulis' : 'Belum diisi'} hintTone={content.brief?.hook ? 'green' : 'gray'} action={canEdit && <span className="link-btn">Edit</span>}>
+      <Fold title="Brief dan skrip" hint={content.brief?.hook ? 'Hook sudah ditulis' : 'Belum diisi'} hintTone={content.brief?.hook ? 'green' : 'gray'} action={canEdit && <Button size="sm" variant="ghost" icon={Pencil} onClick={() => setEditOpen(true)}>Edit</Button>}>
         {BRIEF_FIELDS.filter(([k]) => content.brief?.[k]).map(([k, label]) => (
           <div key={k}><div className="muted small strong">{label}</div><div className="pre-line">{content.brief[k]}</div></div>
         ))}
@@ -253,7 +260,7 @@ export default function ContentDetail() {
         {can(profile, 'task.assign') && <Button size="sm" icon={Plus} onClick={() => setTaskModal({ presetContentId: content.id })}>Tugaskan staf</Button>}
       </Fold>
 
-      <Fold title="Link dan fail" hint={`${(content.links || []).length} link`} action={null}>
+      <Fold title="Link dan fail" hint={`${(content.links || []).length} link`}>
         <div className="link-list">
           {(content.links || []).map((l) => (
             <div key={l.id} className="row gap-sm">

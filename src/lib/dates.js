@@ -1,4 +1,6 @@
 // Semua tarikh disimpan sebagai teks 'YYYY-MM-DD' (masa tempatan) supaya tiada isu timezone.
+// Paparan guna format Bahasa Malaysia (contoh: 27 Okt, Isnin).
+const LOCALE = 'ms-MY';
 const pad = (n) => String(n).padStart(2, '0');
 
 export const toISODate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -30,24 +32,25 @@ export const monthEnd = (y, m) => toISODate(new Date(y, m + 1, 0));
 
 export function fmtDate(s, opts = {}) {
   if (!s) return '—';
-  return parseDate(s).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', ...opts });
+  return parseDate(s).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', ...opts });
 }
 export const fmtDay = (s) => fmtDate(s, { weekday: 'short' });
-export const monthLabel = (y, m) => new Date(y, m, 1).toLocaleDateString('en-MY', { month: 'long', year: 'numeric' });
+export const monthLabel = (y, m) => new Date(y, m, 1).toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' });
+export const monthShort = (s) => (s ? parseDate(s).toLocaleDateString(LOCALE, { month: 'short' }) : '');
 
 export function fmtDateTime(iso) {
   if (!iso) return '';
-  return new Date(iso).toLocaleString('en-MY', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  return new Date(iso).toLocaleString(LOCALE, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 }
 
 export function relDue(s) {
-  if (!s) return 'No date';
+  if (!s) return 'Tiada tarikh';
   const d = daysBetween(today(), s);
-  if (d === 0) return 'Today';
-  if (d === 1) return 'Tomorrow';
-  if (d === -1) return 'Yesterday';
-  if (d < 0) return `${-d} days overdue`;
-  if (d < 7) return `In ${d} days`;
+  if (d === 0) return 'Hari ini';
+  if (d === 1) return 'Esok';
+  if (d === -1) return 'Semalam';
+  if (d < 0) return `Lewat ${-d} hari`;
+  if (d < 7) return `Dalam ${d} hari`;
   return fmtDate(s);
 }
 

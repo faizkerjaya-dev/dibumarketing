@@ -223,7 +223,7 @@ export function MultiChips({ options = [], value = [], onChange, allowNew }) {
         <input
           className="chip-input"
           value={draft}
-          placeholder="+ Add"
+          placeholder="+ Tambah"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && draft.trim()) {

@@ -14,14 +14,14 @@ export default function Notifications() {
       <Card>
         {loading && <Loading />}
         <ErrorBox error={error} />
-        {!loading && !items.length && <Empty title="Tiada notifikasi" text="Notifikasi muncul bila anda diassign tugasan, content direview, atau status berubah." />}
+        {!loading && !items.length && <Empty title="Tiada notifikasi" text="Notifikasi muncul bila anda diberi tugasan, content disemak, atau status berubah." />}
         {items.map((n) => (
           <button key={n.id} type="button" className={`menu-item notif${n.read ? '' : ' unread'}`} style={{ width: '100%' }} onClick={() => { markRead(n.id); if (n.link) navigate(n.link); }}>
             <span className="grow"><strong>{n.title}</strong>{n.body && <span className="small muted block">{n.body}</span>}</span>
             <span className="small muted">{fmtDateTime(n.createdAtIso)}</span>
           </button>
         ))}
-        <p className="muted small" style={{ marginTop: 12 }}>Notifikasi dicipta bila sesuatu berlaku dalam app. Peringatan deadline automatik (email/push) belum diaktifkan; ia perlukan Cloud Functions (pelan Blaze). Deadline hampir dipaparkan di Dashboard dan My tasks.</p>
+        <p className="muted small" style={{ marginTop: 12 }}>Notifikasi dicipta bila sesuatu berlaku dalam app. Peringatan deadline automatik (email atau push) belum diaktifkan kerana ia perlukan Cloud Functions (pelan Blaze). Deadline terdekat dipaparkan di Dashboard dan Tugasan saya.</p>
       </Card>
     </div>
   );

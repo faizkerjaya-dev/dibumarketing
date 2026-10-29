@@ -8,8 +8,10 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
-import { quickAddContent, fillSlot, saveTask, updateById } from '../lib/db';
-import { statusList, statusForStage } from '../lib/statuses';
+import { quickAddContent, fillSlot, saveTask } from '../lib/db';
+import { statusList, statusForStage, findStatus } from '../lib/statuses';
+import { missingForStatus, FIELD_LABELS } from '../lib/workflow';
+import { AppError } from '../lib/errors';
 import { TASK_ROLES, PRIORITIES } from '../lib/constants';
 import { today } from '../lib/dates';
 import { Button, Field, Input, Select, Textarea } from './ui';
@@ -30,13 +32,12 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
   const [mode, setMode] = useState('quick');
   const [advanced, setAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
-  // null sehingga useEffect mengisinya. Tanpa ini, render pertama membaca f.title yang belum wujud.
-  const [f, setF] = useState(null);
+  const [f, setF] = useState({});
   const [task, setTask] = useState({ staffId: '', role: 'shooting', deadline: '', estHours: '' });
   const titleRef = useRef(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setF({}); return; }
     const last = readLast();
     const base = content || {};
     setMode(content && !content.isSlot ? 'full' : 'quick');
@@ -50,7 +51,7 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
       ownerStaffId: base.ownerStaffId || preset.ownerStaffId || last.ownerStaffId || profile.staffId || '',
       pillar: base.pillar || '',
       product: base.product || '',
-      campaignId: base.campaignId || '',
+      campaignId: base.campaignId || preset.campaignId || '',
       priority: base.priority || 'medium',
       type: base.type || '',
       publishAccount: base.publishAccount || '',
@@ -58,12 +59,11 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
       brief: { ...EMPTY_BRIEF, ...(base.brief || {}) },
     });
     setTimeout(() => titleRef.current?.focus(), 60);
-  }, [open, content, preset.date, preset.platform, preset.status, preset.ownerStaffId, config, profile.staffId]);
+  }, [open, content, preset.date, preset.platform, preset.status, preset.ownerStaffId, preset.campaignId, config, profile.staffId]);
 
-  if (!open || !f) return null;
-  const title = (f.title || '').trim();
-  // Satu nilai untuk tajuk dan label aksesibiliti, supaya kedua-duanya tidak terpisah.
-  const heading = content ? (content.isSlot ? 'Isi slot kosong' : 'Edit content') : 'Content baharu';
+  // Render pertama selepas panel dibuka berlaku SEBELUM useEffect di atas mengisi borang.
+  // Tanpa semakan ini, f.title masih undefined dan panel akan crash.
+  if (!open || !f.brief) return null;
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
   const setBrief = (k) => (e) => setF((x) => ({ ...x, brief: { ...x.brief, [k]: e.target.value } }));
   const staffOpts = staff.filter((s) => s.status !== 'inactive').map((s) => ({ value: s.id, label: s.name }));
@@ -78,6 +78,11 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
         priority: f.priority, type: f.type, publishAccount: f.publishAccount, status: f.status,
         brief: f.brief,
       };
+      // Syarat aliran kerja yang sama seperti Papan kerja: contohnya status Terbit perlukan link post.
+      const missing = missingForStatus(config, { ...content, ...payload }, f.status);
+      if (missing.length) {
+        throw new AppError(`Status “${findStatus(config, f.status).label}” perlukan: ${missing.map((m) => FIELD_LABELS[m]).join(', ')}. Pilih status lain, atau tukar status dari halaman content.`);
+      }
       let id;
       if (content) {
         await fillSlot(content, payload, { profile, staffById });
@@ -102,16 +107,17 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
     }
   };
 
+  // Enter hanya simpan bila kursor dalam kotak teks satu baris (bukan textarea / butang).
   const onKey = (e) => {
-    if (e.key === 'Enter' && mode === 'quick' && title) { e.preventDefault(); save(true); }
+    if (e.key === 'Enter' && mode === 'quick' && e.target.tagName === 'INPUT' && f.title.trim() && !busy) { e.preventDefault(); save(!content); }
     if (e.key === 'Escape') onClose();
   };
 
   return (
     <div className="side-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="side-panel" role="dialog" aria-modal="true" aria-label={heading} onKeyDown={onKey}>
+      <aside className="side-panel" role="dialog" aria-modal="true" aria-label={content ? (content.isSlot ? 'Isi slot kosong' : 'Edit content') : 'Content baharu'} onKeyDown={onKey}>
         <div className="side-head">
-          <h2 className="grow">{heading}</h2>
+          <h2 className="grow">{content ? (content.isSlot ? 'Isi slot kosong' : 'Edit content') : 'Content baharu'}</h2>
           <button type="button" className="icon-btn" aria-label="Tutup" onClick={onClose}><X size={18} /></button>
         </div>
 
@@ -156,7 +162,7 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
               <div className="warnbox" style={{ display: 'block' }}>
                 <div className="field-label" style={{ color: 'var(--link)', marginBottom: 8 }}>Tugaskan kepada</div>
                 <div className="chips" style={{ marginBottom: 10 }}>
-                  {staff.filter((s) => s.status === 'active').slice(0, 8).map((s) => (
+                  {staff.filter((s) => s.status === 'active').map((s) => (
                     <button key={s.id} type="button" className={`chip${task.staffId === s.id ? ' on' : ''}`} onClick={() => setTask((t) => ({ ...t, staffId: t.staffId === s.id ? '' : s.id }))}>{s.name}</button>
                   ))}
                 </div>
@@ -168,7 +174,7 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
                   </div>
                 )}
                 <p className="small" style={{ color: 'var(--link)', marginTop: 6 }}>
-                  {task.staffId ? `${staffById[task.staffId]?.name} akan dapat notifikasi dan content ini muncul dalam Hari ini dia.` : 'Pilihan. Kosongkan jika pemilik content buat sendiri.'}
+                  {task.staffId ? `${staffById[task.staffId]?.name} akan dapat notifikasi dan content ini muncul dalam senarai tugasan dia.` : 'Pilihan. Kosongkan jika pemilik content buat sendiri.'}
                 </p>
               </div>
 
@@ -199,8 +205,8 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
         <div className="side-foot">
           <Button onClick={onClose}>Batal</Button>
           <div className="grow" />
-          <Button busy={busy} disabled={!title} onClick={() => save(true)}>Simpan dan tambah lagi</Button>
-          <Button variant="primary" busy={busy} disabled={!title} onClick={() => save(false)}>Simpan</Button>
+          {!content && <Button busy={busy} disabled={!f.title.trim()} onClick={() => save(true)}>Simpan dan tambah lagi</Button>}
+          <Button variant="primary" busy={busy} disabled={!f.title.trim()} onClick={() => save(false)}>Simpan</Button>
         </div>
       </aside>
     </div>

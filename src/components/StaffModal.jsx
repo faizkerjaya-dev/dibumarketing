@@ -43,7 +43,7 @@ export default function StaffModal({ open, onClose, staff }) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} wide title={staff ? `Edit ${staff.name}` : 'Add staff'} footer={<><Button onClick={onClose}>Batal</Button><Button variant="primary" busy={busy} onClick={save}>Simpan</Button></>}>
+    <Modal open={open} onClose={onClose} wide title={staff ? `Edit ${staff.name}` : 'Tambah staf'} footer={<><Button onClick={onClose}>Batal</Button><Button variant="primary" busy={busy} onClick={save}>Simpan</Button></>}>
       <div className="grid-2">
         <Field label="Nama penuh" required><Input value={f.name || ''} onChange={set('name')} /></Field>
         <Field label="Email"><Input type="email" value={f.email || ''} onChange={set('email')} /></Field>
@@ -59,14 +59,14 @@ export default function StaffModal({ open, onClose, staff }) {
       <datalist id="job-titles">{['Marketing Manager', 'Content Manager', 'Content Creator', 'Scriptwriter', 'Videographer', 'Video Editor', 'Designer', 'Social Media Manager', 'Affiliate Manager'].map((t) => <option key={t} value={t} />)}</datalist>
       <div className="form-section">
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <h3>Unavailable dates</h3>
+          <h3>Tarikh tidak available</h3>
           <Button size="sm" icon={Plus} onClick={() => setF((x) => ({ ...x, unavailable: [...(x.unavailable || []), { id: uid(), from: '', to: '', note: '' }] }))}>Tambah tarikh</Button>
         </div>
         {(f.unavailable || []).map((u, i) => (
           <div key={u.id || i} className="grid-3" style={{ alignItems: 'end' }}>
             <Field label="Dari"><Input type="date" value={u.from} onChange={(e) => setRange(i, 'from', e.target.value)} /></Field>
             <Field label="Hingga"><Input type="date" value={u.to} onChange={(e) => setRange(i, 'to', e.target.value)} /></Field>
-            <Field label="Nota"><Input value={u.note} onChange={(e) => setRange(i, 'note', e.target.value)} placeholder="Annual leave" /></Field>
+            <Field label="Nota"><Input value={u.note} onChange={(e) => setRange(i, 'note', e.target.value)} placeholder="Cuti tahunan" /></Field>
             <Button variant="ghost" icon={Trash2} onClick={() => setF((x) => ({ ...x, unavailable: x.unavailable.filter((_, j) => j !== i) }))}>Buang</Button>
           </div>
         ))}

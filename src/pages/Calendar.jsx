@@ -2,7 +2,7 @@
 //   1. Klik mana-mana sel, taip tajuk, Enter. Baris baharu terus terbuka dalam hari yang sama.
 //   2. Rancang sebulan: tempah slot kosong mengikut kekerapan posting.
 //   3. Bank idea: tulis idea tanpa tarikh, seret ke kalendar bila nak jadualkan.
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Plus, CalendarRange, ListChecks, GripVertical } from 'lucide-react';
 import { useData } from '../context/DataContext';
@@ -12,8 +12,9 @@ import { useToast } from '../context/ToastContext';
 import { can, isCreatorOnly } from '../lib/permissions';
 import { updateById, logActivity, quickAddContent, addIdea, scheduleIdea } from '../lib/db';
 import { findStatus, statusForStage, isArchived } from '../lib/statuses';
+import { platformShort } from '../lib/constants';
 import { today, toISODate, addDays, startOfWeek, monthLabel, fmtDate, parseDate } from '../lib/dates';
-import { PageHeader, Button, Segmented, Loading, Empty, useConfirm, IconButton, Card } from '../components/ui';
+import { PageHeader, Button, Segmented, Loading, Empty, useConfirm, IconButton, Card, Pill } from '../components/ui';
 import { ContentStatusPill } from '../components/pills';
 import ContentFilters, { EMPTY_FILTERS, applyFilters } from '../components/ContentFilters';
 import BriefDrawer, { readLast } from '../components/BriefDrawer';
@@ -80,10 +81,12 @@ export default function CalendarPage() {
   const monthTo = toISODate(new Date(a.getFullYear(), a.getMonth() + 1, 0));
   const monthSlots = useMemo(() => live.filter((c) => c.isSlot && c.publishDate >= monthFrom && c.publishDate <= monthTo).sort((x, y) => x.publishDate.localeCompare(y.publishDate)), [live, monthFrom, monthTo]);
 
-  if (params.get('add') && !drawer) {
-    setDrawer({ preset: { date: today() } });
+  // ?add=1 (dari menu Tambah) buka panel content baharu. ?campaign=ID pra-pilih kempen.
+  useEffect(() => {
+    if (!params.get('add')) return;
+    setDrawer({ preset: { date: today(), campaignId: params.get('campaign') || '' } });
     setParams({}, { replace: true });
-  }
+  }, [params, setParams]);
 
   const shift = (dir) => {
     setAddCell(null);
@@ -129,14 +132,14 @@ export default function CalendarPage() {
     if (!ok) return;
     await run(async () => {
       await updateById('content', c.id, { publishDate: day }, profile);
-      await logActivity(profile, { type: 'publish_date_changed', message: `${profile.name} pindah tarikh terbit “${c.title}” ke ${day}`, refType: 'content', refId: c.id });
+      await logActivity(profile, { type: 'publish_date_changed', message: `${profile.name} pindah tarikh terbit “${c.title || c.slotLabel || c.code}” ke ${fmtDate(day)}`, refType: 'content', refId: c.id });
     }, 'Tarikh terbit dikemas kini');
   };
 
   const submitIdea = async () => {
     const t = ideaText.trim();
     if (!t) return;
-    const ok = await run(() => addIdea({ text: t, platform: addPlatform, statusKey: statusForStage(config, 'idea') }, { profile }), 'Idea disimpan');
+    const ok = await run(() => addIdea({ text: t, platform: addPlatform, statusKey: statusForStage(config, 'idea') }, { profile, staffById }), 'Idea disimpan');
     if (ok) setIdeaText('');
   };
 
@@ -191,7 +194,7 @@ export default function CalendarPage() {
       {!creatorOnly && <ContentFilters value={filters} onChange={setFilters} />}
 
       <div className="split">
-        <div className="main" style={{ flexBasis: 620 }}>
+        <div className="main" style={{ flex: '1 1 640px' }}>
           {view !== 'list' ? (
             <div className={`cal${view === 'week' ? ' cal-week' : ''}`}>
               <div className="cal-inner">
@@ -231,7 +234,7 @@ export default function CalendarPage() {
                             />
                             <div className="quickadd-row">
                               {config.platforms.map((p) => (
-                                <button key={p} type="button" className={`qa-chip${addPlatform === p ? ' on' : ''}`} onClick={() => setAddPlatform(p)}>{p.slice(0, 2).toUpperCase()}</button>
+                                <button key={p} type="button" title={p} aria-pressed={addPlatform === p} className={`qa-chip${addPlatform === p ? ' on' : ''}`} onClick={() => setAddPlatform(p)}>{platformShort(p)}</button>
                               ))}
                               <button type="button" className="qa-chip" style={{ marginLeft: 'auto' }} onClick={() => { setDrawer({ preset: { date: day, platform: addPlatform } }); setAddCell(null); }}>Brief</button>
                             </div>
@@ -268,8 +271,8 @@ export default function CalendarPage() {
         </div>
 
         {!creatorOnly && (
-          <div className="side" style={{ flexBasis: 270 }}>
-            <Card title="Bank idea" subtitle="Tulis idea bila terlintas. Seret ke tarikh bila nak jadualkan." actions={<span className="muted small">{ideas.length}</span>}>
+          <div className="side" style={{ flex: '0 1 300px' }}>
+            <Card title="Bank idea" subtitle="Tulis idea bila terlintas. Seret ke tarikh bila nak jadualkan." actions={<Pill>{ideas.length}</Pill>}>
               {canCreate && (
                 <div className="row gap-sm" style={{ marginBottom: 10 }}>
                   <input
@@ -277,14 +280,14 @@ export default function CalendarPage() {
                     style={{ minHeight: 36 }}
                     value={ideaText}
                     onChange={(e) => setIdeaText(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && submitIdea()}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitIdea(); } }}
                     placeholder="Tulis idea, tekan Enter"
                     aria-label="Idea baharu"
                   />
                 </div>
               )}
               <div className="col gap-xs">
-                {ideas.slice(0, 20).map((c) => (
+                {ideas.slice(0, 30).map((c) => (
                   <div
                     key={c.id}
                     className={`idea${drag?.id === c.id ? ' dragging' : ''}`}
@@ -295,10 +298,11 @@ export default function CalendarPage() {
                   >
                     <GripVertical size={13} className="faint" />
                     <span className="grow min0 ellipsis small strong">{c.title}</span>
-                    {c.platform && <span className="tag">{c.platform.slice(0, 2).toUpperCase()}</span>}
+                    {c.platform && <span className="tag" title={c.platform}>{platformShort(c.platform)}</span>}
                   </div>
                 ))}
                 {!ideas.length && <p className="muted small">Belum ada idea tersimpan.</p>}
+                {ideas.length > 30 && <p className="muted small">+{ideas.length - 30} idea lagi. Guna carian untuk cari idea tertentu.</p>}
               </div>
             </Card>
 

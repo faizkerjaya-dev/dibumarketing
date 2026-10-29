@@ -61,13 +61,13 @@ export default function DeliverableModal({ open, onClose, deliverable, assignmen
   };
 
   const remove = async () => {
-    if (!(await confirm('Padam deliverable ini?', { title: 'Delete deliverable', okLabel: 'Delete', danger: true }))) return;
+    if (!(await confirm('Padam deliverable ini?', { title: 'Padam deliverable', okLabel: 'Padam', danger: true }))) return;
     const ok = await run(() => removeById('deliverables', deliverable.id), 'Dipadam');
     if (ok) onClose();
   };
 
   return (
-    <Modal open={open} onClose={onClose} wide title={deliverable ? `${deliverable.code} · ${deliverable.creatorName} · ${deliverable.type}` : 'New deliverable'} footer={tab === 'details' && canEdit && <>
+    <Modal open={open} onClose={onClose} wide title={deliverable ? `${deliverable.code} · ${deliverable.creatorName} · ${deliverable.type}` : 'Deliverable baharu'} footer={tab === 'details' && canEdit && <>
       {deliverable && <Button variant="danger" onClick={remove} className="mr-auto">Padam</Button>}
       <Button onClick={onClose}>Batal</Button><Button variant="primary" busy={busy} onClick={save}>Simpan</Button>
     </>}>
@@ -75,21 +75,21 @@ export default function DeliverableModal({ open, onClose, deliverable, assignmen
       {tab === 'details' && (
         <div className="grid-2">
           {!deliverable && (
-            <Field label="Creator assignment" required full>
+            <Field label="Creator dan kempen" required full>
               <Select value={f.assignmentId || ''} onChange={set('assignmentId')} options={campaignCreators.map((a) => ({ value: a.id, label: `${a.creatorName} · ${a.campaignName}` }))} placeholder="Pilih" disabled={!!assignmentId} />
             </Field>
           )}
           <Field label="Jenis deliverable"><Select value={f.type || ''} onChange={set('type')} options={config.deliverableTypes} /></Field>
           <Field label="Platform"><Select value={f.platform || ''} onChange={set('platform')} options={config.platforms} /></Field>
           <Field label="Status"><Select value={f.status || 'brief_sent'} onChange={set('status')} options={DELIVERABLE_STATUSES} /></Field>
-          <Field label="Content berkaitan" hint="Pilihan. Pautkan jika deliverable ini juga ada rekod content."><Select value={f.contentId || ''} onChange={set('contentId')} options={content.filter((c) => !c.archived).map((c) => ({ value: c.id, label: `${c.code} · ${c.title}` }))} placeholder="Tiada" /></Field>
+          <Field label="Content berkaitan" hint="Pilihan. Pautkan jika deliverable ini juga ada rekod content."><Select value={f.contentId || ''} onChange={set('contentId')} options={content.filter((c) => !c.archived && !c.isSlot).map((c) => ({ value: c.id, label: `${c.code} · ${c.title}` }))} placeholder="Tiada" /></Field>
           <Field label="Draf perlu siap"><Input type="date" value={f.draftDue || ''} onChange={set('draftDue')} /></Field>
           <Field label="Pembetulan perlu siap"><Input type="date" value={f.revisionDue || ''} onChange={set('revisionDue')} /></Field>
           <Field label="Approval perlu siap"><Input type="date" value={f.approvalDue || ''} onChange={set('approvalDue')} /></Field>
           <Field label="Terbit pada"><Input type="date" value={f.publishDue || ''} onChange={set('publishDue')} /></Field>
           <Field label="Link post"><Input type="url" value={f.publishedUrl || ''} onChange={set('publishedUrl')} placeholder="https://…" /></Field>
           <Field label="Tarikh terbit"><Input type="date" value={f.publishedDate || ''} onChange={set('publishedDate')} /></Field>
-          <Field label="Keterangan" full><Input value={f.description || ''} onChange={set('description')} placeholder="Video 1: unboxing + review" /></Field>
+          <Field label="Keterangan" full><Input value={f.description || ''} onChange={set('description')} placeholder="Video 1: unboxing dan review" /></Field>
           <Field label="Brief" full><Textarea value={f.brief || ''} onChange={set('brief')} /></Field>
           <Field label="Nota" full><Textarea value={f.notes || ''} onChange={set('notes')} rows={2} /></Field>
           {deliverable && can(profile, 'metrics.enter') && <Button icon={BarChart3} onClick={() => setMetricsOpen(true)}>Rekod prestasi</Button>}
@@ -97,10 +97,10 @@ export default function DeliverableModal({ open, onClose, deliverable, assignmen
       )}
       {tab === 'revisions' && deliverable && (
         <div className="col gap">
-          <div className="row gap-sm wrap"><DeliverableStatusPill value={deliverable.status} /><span className="muted small">{deliverable.revisionCount || 0} revision(s)</span></div>
+          <div className="row gap-sm wrap"><DeliverableStatusPill value={deliverable.status} /><span className="muted small">{deliverable.revisionCount || 0} kali pembetulan</span></div>
           {canEdit && (
             <div className="col gap-sm">
-              <Field label="Nota"><Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Komen review atau link draft" /></Field>
+              <Field label="Nota"><Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Komen semakan atau link draf" /></Field>
               <div className="row gap-sm wrap">
                 <Button busy={busy} onClick={() => act('submit')}>Tanda draf dihantar</Button>
                 <Button busy={busy} onClick={() => act('revision')}>Minta pembetulan</Button>
@@ -108,7 +108,7 @@ export default function DeliverableModal({ open, onClose, deliverable, assignmen
               </div>
             </div>
           )}
-          <CommentThread targetType="deliverable" targetId={deliverable.id} thread="revision" canPost={false} emptyText="Belum ada sejarah revisi." />
+          <CommentThread targetType="deliverable" targetId={deliverable.id} thread="revision" canPost={false} emptyText="Belum ada sejarah pembetulan." />
         </div>
       )}
       {deliverable && <MetricsModal open={metricsOpen} onClose={() => setMetricsOpen(false)} target={{ type: 'deliverable', id: deliverable.id, campaignId: deliverable.campaignId, creatorId: deliverable.creatorId }} />}

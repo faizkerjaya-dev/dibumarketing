@@ -18,7 +18,7 @@ export default function Library() {
     const all = [];
     content.forEach((c) => {
       (c.links || []).forEach((l) => all.push({ ...l, content: c }));
-      if (c.publishUrl) all.push({ id: `pub-${c.id}`, label: `Published: ${c.title}`, url: c.publishUrl, category: 'Published content', addedAt: c.publishedDate, content: c });
+      if (c.publishUrl) all.push({ id: `pub-${c.id}`, label: `Post terbit: ${c.title}`, url: c.publishUrl, category: 'Post terbit', addedAt: c.publishedDate, content: c });
     });
     const q = f.q.toLowerCase();
     return all
@@ -35,17 +35,17 @@ export default function Library() {
 
   return (
     <div className="page">
-      <PageHeader title="Pustaka link" actions={<Segmented value={view} onChange={setView} options={[{ key: 'grid', label: 'Grid' }, { key: 'list', label: 'List' }]} />}>
-        <p className="muted small" style={{ marginTop: 4 }}>Semua link yang dilampirkan pada content. Untuk tambah link, buka content › tab Links.</p>
+      <PageHeader title="Pustaka link" actions={<Segmented value={view} onChange={setView} options={[{ key: 'grid', label: 'Grid' }, { key: 'list', label: 'Senarai' }]} />}>
+        <p className="muted small" style={{ marginTop: 4 }}>Semua link yang dilampirkan pada content. Untuk tambah link, buka content › bahagian Link dan fail.</p>
       </PageHeader>
       <div className="toolbar">
         <SearchInput value={f.q} onChange={(q) => setF({ ...f, q })} placeholder="Cari link" />
-        <Select value={f.category} onChange={set('category')} options={[...config.linkCategories, 'Published content']} placeholder="Semua kategori" />
+        <Select value={f.category} onChange={set('category')} options={[...config.linkCategories, 'Post terbit']} placeholder="Semua kategori" />
         <Select value={f.campaignId} onChange={set('campaignId')} options={campaigns.map((c) => ({ value: c.id, label: c.name }))} placeholder="Semua kempen" />
         <Select value={f.platform} onChange={set('platform')} options={config.platforms} placeholder="Semua platform" />
-        <Select value={f.contentId} onChange={set('contentId')} options={content.map((c) => ({ value: c.id, label: `${c.code} · ${c.title}` }))} placeholder="Semua content" />
+        <Select value={f.contentId} onChange={set('contentId')} options={content.filter((c) => !c.isSlot).map((c) => ({ value: c.id, label: `${c.code} · ${c.title}` }))} placeholder="Semua content" />
       </div>
-      {!links.length && <Card><Empty title="Belum ada link" text="Tampal link Google Drive dalam tab Links pada content." /></Card>}
+      {!links.length && <Card><Empty title="Belum ada link" text="Tampal link Google Drive dalam bahagian Link dan fail pada setiap content." /></Card>}
       {view === 'grid' ? (
         <div className="lib-grid">
           {links.map((l) => (

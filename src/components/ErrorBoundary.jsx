@@ -33,14 +33,14 @@ export default class ErrorBoundary extends Component {
     return (
       <div className="crash">
         <h1>Halaman ini mengalami ralat</h1>
-        <p>Cuba refresh. Jika berulang, tekan “Copy diagnostics” dan hantar kepada IT.</p>
+        <p>Cuba refresh. Jika berulang, tekan “Salin diagnostik” dan hantar kepada IT.</p>
         <code className="crash-msg">{error.message}</code>
         <div className="row gap-sm wrap">
           <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>Refresh</button>
-          <button type="button" className="btn btn-secondary" onClick={() => { navigator.clipboard?.writeText(text); this.setState({ copied: true }); }}>{copied ? 'Copied' : 'Copy diagnostics'}</button>
-          <a className="btn btn-secondary" href="/">Go to home</a>
+          <button type="button" className="btn btn-secondary" onClick={() => { navigator.clipboard?.writeText(text); this.setState({ copied: true }); }}>{copied ? 'Disalin' : 'Salin diagnostik'}</button>
+          <a className="btn btn-secondary" href="/">Ke halaman utama</a>
         </div>
-        <details><summary>Technical details</summary><pre>{text}</pre></details>
+        <details><summary>Butiran teknikal</summary><pre>{text}</pre></details>
       </div>
     );
   }

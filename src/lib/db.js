@@ -7,8 +7,10 @@ import {
 import { db } from '../firebase';
 import { log } from './log';
 import { AppError } from './errors';
-import { nowIso, today, addDays, parseDate } from './dates';
-import { uid } from './constants';
+import { nowIso, today, addDays, parseDate, fmtDate } from './dates';
+import { uid, TASK_STATUSES, TASK_ROLES, REVIEW_OUTCOMES, findOpt } from './constants';
+
+const taskStatusLabel = (k) => findOpt(TASK_STATUSES, k).label;
 
 const by = (profile) => profile?.name || profile?.email || '';
 
@@ -37,6 +39,18 @@ export async function setById(name, id, data, merge = true) {
 export async function removeById(name, id) {
   log.warn('delete', `${name}/${id}`);
   await deleteDoc(doc(db, name, id));
+}
+
+// Firestore hadkan 500 operasi bagi setiap batch. Fungsi ini pecahkan senarai kepada
+// beberapa batch dan TUNGGU setiap satu selesai, supaya ralat tidak hilang begitu sahaja.
+const BATCH_LIMIT = 400;
+export async function commitInChunks(items, apply) {
+  for (let i = 0; i < items.length; i += BATCH_LIMIT) {
+    const batch = writeBatch(db);
+    items.slice(i, i + BATCH_LIMIT).forEach((item, j) => apply(batch, item, i + j));
+    // eslint-disable-next-line no-await-in-loop
+    await batch.commit();
+  }
 }
 
 // Kod berturutan seperti DBU-0001, guna transaction supaya tiada kod berganda.
@@ -160,8 +174,7 @@ export async function createSlots(plan, { profile, staffById, config }) {
   if (rows.length > 400) throw new AppError(`Tetapan ini akan cipta ${rows.length} slot. Pendekkan tempoh supaya tidak melebihi 400.`);
 
   const codes = await reserveCodes('content', 'DBU', rows.length);
-  let batch = writeBatch(db);
-  rows.forEach((r, i) => {
+  await commitInChunks(rows, (batch, r, i) => {
     batch.set(doc(collection(db, 'content')), {
       ...blankContent({
         code: codes[i],
@@ -179,9 +192,7 @@ export async function createSlots(plan, { profile, staffById, config }) {
       }),
       createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: by(profile), updatedBy: by(profile),
     });
-    if ((i + 1) % 400 === 0) { batch.commit(); batch = writeBatch(db); }
   });
-  await batch.commit();
   await logActivity(profile, { type: 'slots_created', message: `${by(profile)} tempah ${rows.length} slot (${from} hingga ${to})`, refType: 'calendar', refId: null });
   log.info('slots created', rows.length);
   return rows.length;
@@ -189,20 +200,23 @@ export async function createSlots(plan, { profile, staffById, config }) {
 
 // Buang slot kosong yang tidak jadi digunakan.
 export async function deleteSlots(ids) {
-  let batch = writeBatch(db);
-  ids.forEach((id, i) => {
-    batch.delete(doc(db, 'content', id));
-    if ((i + 1) % 400 === 0) { batch.commit(); batch = writeBatch(db); }
-  });
-  await batch.commit();
+  await commitInChunks(ids, (batch, id) => batch.delete(doc(db, 'content', id)));
 }
 
 // Bank idea: content tanpa tarikh terbit. Seret ke kalendar untuk beri tarikh.
-export async function addIdea({ text, platform, statusKey }, { profile }) {
+// Bila Content Creator hantar idea, dia jadi pemilik supaya idea itu kelihatan dalam akaun dia.
+export async function addIdea({ text, platform, statusKey }, { profile, staffById = {} }) {
   const title = (text || '').trim();
   if (!title) throw new AppError('Tulis idea dahulu.');
   const code = await nextCode('content', 'DBU');
-  return createDoc('content', blankContent({ title, code, platform: platform || '', status: statusKey, publishDate: '' }), profile);
+  const me = profile?.staffId ? staffById[profile.staffId] : null;
+  return createDoc('content', blankContent({
+    title, code, platform: platform || '', status: statusKey, publishDate: '',
+    ownerStaffId: me?.id || '',
+    ownerName: me?.name || '',
+    assigneeStaffIds: me ? [me.id] : [],
+    assigneeUids: profile?.uid ? [profile.uid] : [],
+  }), profile);
 }
 
 export async function scheduleIdea(content, date, profile) {
@@ -264,8 +278,7 @@ export async function createContent(data, tasks, { profile, staffById }) {
   const content = { id, code, ...data };
   const valid = tasks.filter((t) => t.staffId && staffById[t.staffId]);
   if (valid.length) {
-    const batch = writeBatch(db);
-    valid.forEach((t) => {
+    await commitInChunks(valid, (batch, t) => {
       batch.set(doc(collection(db, 'tasks')), {
         ...taskPayload(t, content, staffById[t.staffId]),
         assignedAt: nowIso(),
@@ -273,7 +286,6 @@ export async function createContent(data, tasks, { profile, staffById }) {
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
     });
-    await batch.commit();
     await syncAssignees(id, staffById);
     await notifyStaff(valid.map((t) => t.staffId), staffById, { title: `Tugasan baharu: ${data.title}`, link: `/content/${id}` }, profile?.uid);
   }
@@ -291,7 +303,7 @@ export async function saveTask(task, { profile, staffById, contentById, existing
     const history = [...(existing.history || [])];
     if (existing.staffId !== task.staffId) history.push({ at: nowIso(), by: by(profile), text: `Ditukar dari ${existing.staffName} kepada ${staff.name}` });
     if (existing.deadline !== payload.deadline) history.push({ at: nowIso(), by: by(profile), text: `Deadline ${existing.deadline || 'tiada'} → ${payload.deadline || 'tiada'}` });
-    if (existing.status !== payload.status) history.push({ at: nowIso(), by: by(profile), text: `Status → ${payload.status}` });
+    if (existing.status !== payload.status) history.push({ at: nowIso(), by: by(profile), text: `Status → ${taskStatusLabel(payload.status)}` });
     await updateById('tasks', id, { ...payload, history, completedAt: payload.status === 'done' ? existing.completedAt || today() : null }, profile);
   } else {
     id = await createDoc('tasks', {
@@ -301,8 +313,8 @@ export async function saveTask(task, { profile, staffById, contentById, existing
   }
   if (payload.contentId) await syncAssignees(payload.contentId, staffById);
   if (!existing || existing.staffId !== task.staffId) {
-    await notifyStaff([task.staffId], staffById, { title: `Tugasan baharu: ${payload.contentTitle || payload.description || payload.role}`, body: payload.deadline ? `Perlu siap ${payload.deadline}` : '', link: payload.contentId ? `/content/${payload.contentId}` : '/my-tasks' }, profile?.uid);
-    await logActivity(profile, { type: 'staff_assigned', message: `${by(profile)} tugaskan ${staff.name} untuk ${payload.role}: “${payload.contentTitle || payload.description}”`, refType: payload.contentId ? 'content' : 'task', refId: payload.contentId || id });
+    await notifyStaff([task.staffId], staffById, { title: `Tugasan baharu: ${payload.contentTitle || payload.description || findOpt(TASK_ROLES, payload.role).label}`, body: payload.deadline ? `Perlu siap ${fmtDate(payload.deadline, { weekday: 'short' })}` : '', link: payload.contentId ? `/content/${payload.contentId}` : '/my-tasks' }, profile?.uid);
+    await logActivity(profile, { type: 'staff_assigned', message: `${by(profile)} tugaskan ${staff.name} untuk ${findOpt(TASK_ROLES, payload.role).label}: “${payload.contentTitle || payload.description}”`, refType: payload.contentId ? 'content' : 'task', refId: payload.contentId || id });
   }
   return id;
 }
@@ -318,16 +330,20 @@ export async function updateOwnTask(task, patch, profile) {
   ['status', 'notes', 'actualHours'].forEach((k) => { if (k in patch) allowed[k] = patch[k]; });
   if (allowed.status) {
     allowed.completedAt = allowed.status === 'done' ? today() : null;
-    allowed.history = [...(task.history || []), { at: nowIso(), by: by(profile), text: `Status → ${allowed.status}` }];
+    allowed.history = [...(task.history || []), { at: nowIso(), by: by(profile), text: `Status → ${taskStatusLabel(allowed.status)}` }];
   }
   await updateById('tasks', task.id, allowed, profile);
 }
 
-export async function changeContentStatus(content, status, extra, { profile, staffById }) {
-  await updateById('content', content.id, { status, ...extra }, profile);
-  await logActivity(profile, { type: `content_${status}`, message: `${by(profile)} tukar status “${content.title}” kepada ${status}`, refType: 'content', refId: content.id });
-  if (status === 'approval' || status === 'published') {
-    await notifyStaff([content.ownerStaffId], staffById, { title: `“${content.title}” kini ${status}`, link: `/content/${content.id}` }, profile?.uid);
+// statusInfo = objek status dari Tetapan ({ key, label, stage }). Notifikasi diikat pada PERINGKAT,
+// bukan nama status, supaya masih berfungsi walaupun Admin namakan semula status.
+export async function changeContentStatus(content, statusInfo, extra, { profile, staffById }) {
+  const { key, label = key, stage } = statusInfo;
+  const title = extra?.title || content.title;
+  await updateById('content', content.id, { status: key, ...extra }, profile);
+  await logActivity(profile, { type: `content_status_${stage || key}`, message: `${by(profile)} tukar status “${title}” kepada ${label}`, refType: 'content', refId: content.id });
+  if (stage === 'review' || stage === 'published') {
+    await notifyStaff(content.assigneeStaffIds?.length ? content.assigneeStaffIds : [content.ownerStaffId], staffById, { title: `“${title}” kini ${label}`, link: `/content/${content.id}` }, profile?.uid);
   }
 }
 
@@ -345,7 +361,7 @@ export async function saveReview(content, { outcome, comment, adjustStaffId, adj
   let adjustmentTaskId = null;
   if (outcome === 'adjust' && adjustStaffId) {
     adjustmentTaskId = await saveTask({
-      contentId: content.id, staffId: adjustStaffId, role: 'adjustment', description: comment || 'Adjust and repost',
+      contentId: content.id, staffId: adjustStaffId, role: 'adjustment', description: comment || 'Baiki dan post semula',
       deadline: adjustDeadline || '', priority: 'high', status: 'todo',
     }, { profile, staffById, contentById });
   }
@@ -354,10 +370,10 @@ export async function saveReview(content, { outcome, comment, adjustStaffId, adj
   const fresh = await getDoc(doc(db, 'content', content.id));
   await addComment({
     targetType: 'content', targetId: content.id, thread: 'review', kind: 'review', outcome,
-    text: comment || `Ditanda ${outcome}`, visibleUids: fresh.data()?.assigneeUids || [],
+    text: comment || `Ditanda ${findOpt(REVIEW_OUTCOMES, outcome).label}`, visibleUids: fresh.data()?.assigneeUids || [],
   }, profile);
-  await notifyStaff(fresh.data()?.assigneeStaffIds || [], staffById, { title: `Semakan: “${content.title}”`, body: outcome === 'fyp' ? 'FYP' : outcome === 'adjust' ? 'Perlu dibaiki' : 'Tak FYP', link: `/content/${content.id}?tab=review` }, profile?.uid);
-  await logActivity(profile, { type: 'content_reviewed', message: `${by(profile)} semak “${content.title}”: ${outcome}`, refType: 'content', refId: content.id });
+  await notifyStaff(fresh.data()?.assigneeStaffIds || [], staffById, { title: `Semakan: “${content.title}”`, body: findOpt(REVIEW_OUTCOMES, outcome).label, link: `/content/${content.id}?tab=review` }, profile?.uid);
+  await logActivity(profile, { type: 'content_reviewed', message: `${by(profile)} semak “${content.title}”: ${findOpt(REVIEW_OUTCOMES, outcome).label}`, refType: 'content', refId: content.id });
 }
 
 export async function addLink(content, link, profile) {
@@ -391,9 +407,7 @@ export async function linkStaffToUser(staffId, userUid, staffById) {
   if (!staffId) return;
   await updateDoc(doc(db, 'staff', staffId), { userUid });
   const snap = await getDocs(query(collection(db, 'tasks'), where('staffId', '==', staffId)));
-  const batch = writeBatch(db);
-  snap.docs.forEach((d) => batch.update(d.ref, { staffUid: userUid }));
-  await batch.commit();
+  await commitInChunks(snap.docs, (batch, d) => batch.update(d.ref, { staffUid: userUid }));
   const freshMap = { ...staffById, [staffId]: { ...staffById[staffId], userUid } };
   const contentIds = new Set(snap.docs.map((d) => d.data().contentId).filter(Boolean));
   const owned = await getDocs(query(collection(db, 'content'), where('ownerStaffId', '==', staffId)));
@@ -406,12 +420,22 @@ export async function linkStaffToUser(staffId, userUid, staffById) {
 
 // Nama kempen disalin ke rekod lain untuk paparan pantas. Bila nama berubah, kemas kini salinan itu.
 export async function propagateCampaignName(campaignId, name) {
-  const batch = writeBatch(db);
+  const refs = [];
   for (const col of ['content', 'tasks', 'campaignCreators', 'deliverables']) {
+    // eslint-disable-next-line no-await-in-loop
     const snap = await getDocs(query(collection(db, col), where('campaignId', '==', campaignId)));
-    snap.docs.forEach((d) => batch.update(d.ref, { campaignName: name }));
+    snap.docs.forEach((d) => refs.push(d.ref));
   }
-  await batch.commit();
+  await commitInChunks(refs, (batch, ref) => batch.update(ref, { campaignName: name }));
+}
+
+// Padam content terus (Admin sahaja). Tugasan berkaitan turut dipadam supaya tiada tugasan "yatim"
+// yang masih muncul dalam beban kerja staf.
+export async function deleteContent(content) {
+  const snap = await getDocs(query(collection(db, 'tasks'), where('contentId', '==', content.id)));
+  await commitInChunks(snap.docs, (batch, d) => batch.delete(d.ref));
+  await removeById('content', content.id);
+  return snap.size;
 }
 
 export async function assignCreator(campaign, creator, data, { profile, staffById }) {

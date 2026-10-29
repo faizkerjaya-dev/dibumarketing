@@ -114,6 +114,10 @@ export const DEFAULT_CONFIG = {
   slotLabels: ['Slot pagi', 'Slot petang', 'Slot malam'],
 };
 
+// Singkatan platform untuk ruang sempit (kalendar, bank idea).
+const PLATFORM_SHORT = { tiktok: 'TT', instagram: 'IG', facebook: 'FB', youtube: 'YT', threads: 'TH', twitter: 'X', x: 'X', linkedin: 'LI', shopee: 'SP', lemon8: 'L8' };
+export const platformShort = (p) => (p ? PLATFORM_SHORT[String(p).toLowerCase()] || String(p).slice(0, 2).toUpperCase() : '');
+
 export const findOpt = (list, key) => list.find((x) => x.key === key) || { key, label: key || '—', tone: 'gray' };
 export const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 export const uid = () => Math.random().toString(36).slice(2, 10);
