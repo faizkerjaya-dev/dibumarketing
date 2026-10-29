@@ -15,6 +15,8 @@ import { downloadCsv } from '../lib/csv';
 import { PageHeader, Card, Tabs, Button, Field, Input, Select, Stat, Loading, ErrorBox, Empty } from '../components/ui';
 import { ReviewPill } from '../components/pills';
 import { campaignStats } from './Campaigns';
+import { useAuth } from '../context/AuthContext';
+import { allowedPages, REPORT_PAGES } from '../lib/access';
 import FollowersReport from './reports/FollowersReport';
 import EngagementReport from './reports/EngagementReport';
 
@@ -24,7 +26,11 @@ export default function Analytics() {
   const config = useConfig();
   const now = new Date();
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') || 'content';
+  const { profile } = useAuth();
+  const okPages = allowedPages(profile, config);
+  const allowedTabs = REPORT_PAGES.filter((r) => okPages.has(r.key)).map((r) => r.report);
+  const wanted = params.get('tab') || 'content';
+  const tab = allowedTabs.includes(wanted) ? wanted : allowedTabs[0] || 'content';
   const setTab = (t) => setParams({ tab: t }, { replace: true });
   const statsQ = useQuery(useMemo(() => collection(db, 'accountStats'), []), []);
   const [f, setF] = useState({ from: monthStart(now.getFullYear(), now.getMonth()), to: monthEnd(now.getFullYear(), now.getMonth()), platform: '', campaignId: '', pillar: '', ownerStaffId: '', creatorId: '' });
@@ -100,7 +106,7 @@ export default function Analytics() {
   return (
     <div className="page">
       <PageHeader title="Laporan" />
-      <Tabs value={tab} onChange={setTab} tabs={[{ key: 'content', label: 'Content' }, { key: 'followers', label: 'Pengikut & trend' }, { key: 'engagement', label: 'Analisa content' }, { key: 'campaigns', label: 'Kempen' }, { key: 'creators', label: 'Creator' }, { key: 'staff', label: 'Staf' }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ key: 'content', label: 'Content' }, { key: 'followers', label: 'Pengikut & trend' }, { key: 'engagement', label: 'Analisa content' }, { key: 'campaigns', label: 'Kempen' }, { key: 'creators', label: 'Creator' }, { key: 'staff', label: 'Staf' }].filter((t) => allowedTabs.includes(t.key))} />
       {tab === 'followers' && <FollowersReport stats={statsQ.data} metricsLatest={latest} error={statsQ.error} />}
       {tab === 'engagement' && <EngagementReport metrics={metrics.data} latest={latest} contentId={params.get('content')} onPick={(id) => setParams(id ? { tab: 'engagement', content: id } : { tab: 'engagement' }, { replace: true })} />}
       {!['followers', 'engagement'].includes(tab) && <Card>

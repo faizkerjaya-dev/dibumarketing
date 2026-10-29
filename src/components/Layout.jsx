@@ -11,36 +11,36 @@ import { useConfig } from '../context/ConfigContext';
 import { can, isCreatorOnly } from '../lib/permissions';
 import { ROLES } from '../lib/constants';
 import { stageOf } from '../lib/statuses';
+import { allowedPages, REPORT_PAGES } from '../lib/access';
 import { fmtDateTime } from '../lib/dates';
 import { useNotifications } from '../hooks/useNotifications';
 import { Avatar, SearchInput } from './ui';
 
-function navItems(profile, pendingApprovals) {
-  if (isCreatorOnly(profile)) {
-    return [
-      { to: '/my-tasks', label: 'Hari ini', icon: ListChecks },
-      { to: '/calendar', label: 'Kalendar saya', icon: CalendarDays },
-    ];
-  }
+// Menu sisi ikut akses halaman (Tetapan › Akses role). Laporan muncul jika mana-mana tab laporan dibenarkan.
+function navItems(profile, config, pendingApprovals) {
+  const ok = allowedPages(profile, config);
+  const creatorOnly = isCreatorOnly(profile);
   const items = [
-    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/calendar', label: 'Kalendar', icon: CalendarDays },
-    { to: '/pipeline', label: 'Papan kerja', icon: Columns3 },
-    { to: '/approvals', label: 'Kelulusan', icon: BadgeCheck, badge: pendingApprovals },
-    { to: '/team', label: 'Pasukan', icon: Users },
-    { to: '/creators', label: 'Creator', icon: Star },
-    { to: '/campaigns', label: 'Kempen', icon: Megaphone },
-    { to: '/deliverables', label: 'Deliverable', icon: PackageCheck },
-    { to: '/library', label: 'Pustaka link', icon: Link2 },
-    { to: '/kpi', label: 'KPI', icon: Target },
-    { to: '/analytics', label: 'Laporan', icon: BarChart3 },
+    ok.has('dashboard') && { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ok.has('mytasks') && (profile?.staffId || creatorOnly) && { to: '/my-tasks', label: creatorOnly ? 'Hari ini' : 'Tugasan saya', icon: ListChecks },
+    ok.has('calendar') && { to: '/calendar', label: creatorOnly ? 'Kalendar saya' : 'Kalendar', icon: CalendarDays },
+    ok.has('pipeline') && { to: '/pipeline', label: 'Papan kerja', icon: Columns3 },
+    ok.has('approvals') && { to: '/approvals', label: 'Kelulusan', icon: BadgeCheck, badge: pendingApprovals },
+    ok.has('team') && { to: '/team', label: 'Pasukan', icon: Users },
+    ok.has('creators') && { to: '/creators', label: 'Creator', icon: Star },
+    ok.has('campaigns') && { to: '/campaigns', label: 'Kempen', icon: Megaphone },
+    ok.has('deliverables') && { to: '/deliverables', label: 'Deliverable', icon: PackageCheck },
+    ok.has('library') && { to: '/library', label: 'Pustaka link', icon: Link2 },
+    ok.has('kpi') && { to: '/kpi', label: 'KPI', icon: Target },
+    REPORT_PAGES.some((r) => ok.has(r.key)) && { to: '/analytics', label: 'Laporan', icon: BarChart3 },
+    ok.has('settings') && { to: '/settings', label: 'Tetapan', icon: Settings },
   ];
-  if (profile?.staffId) items.splice(1, 0, { to: '/my-tasks', label: 'Tugasan saya', icon: ListChecks });
-  items.push({ to: '/settings', label: 'Tetapan', icon: Settings });
-  return items;
+  return items.filter(Boolean);
 }
 
 function CreateMenu({ profile }) {
+  const config = useConfig();
+  const ok = allowedPages(profile, config);
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const navigate = useNavigate();
@@ -50,12 +50,12 @@ function CreateMenu({ profile }) {
     return () => document.removeEventListener('mousedown', close);
   }, []);
   const items = [
-    can(profile, 'content.create') && ['Content baharu', '/calendar?add=1'],
-    can(profile, 'library.add') && ['Link ke pustaka', '/library?add=1'],
-    can(profile, 'campaign.manage') && ['Kempen baharu', '/campaigns/new'],
-    can(profile, 'creator.manage') && ['Creator baharu', '/creators/new'],
-    can(profile, 'task.assign') && ['Tugasan staf', '/team?newTask=1'],
-    can(profile, 'campaign.creators') && ['Tugaskan creator', '/deliverables?assign=1'],
+    can(profile, 'content.create') && ok.has('calendar') && ['Content baharu', '/calendar?add=1'],
+    can(profile, 'library.add') && ok.has('library') && ['Link ke pustaka', '/library?add=1'],
+    can(profile, 'campaign.manage') && ok.has('campaigns') && ['Kempen baharu', '/campaigns/new'],
+    can(profile, 'creator.manage') && ok.has('creators') && ['Creator baharu', '/creators/new'],
+    can(profile, 'task.assign') && ok.has('team') && ['Tugasan staf', '/team?newTask=1'],
+    can(profile, 'campaign.creators') && ok.has('deliverables') && ['Tugaskan creator', '/deliverables?assign=1'],
   ].filter(Boolean);
   if (!items.length) return null;
   return (
@@ -72,6 +72,9 @@ function CreateMenu({ profile }) {
 
 function GlobalSearch() {
   const { content, campaigns, creators, staff } = useData();
+  const { profile } = useAuth();
+  const config = useConfig();
+  const ok = allowedPages(profile, config);
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
@@ -81,11 +84,11 @@ function GlobalSearch() {
     const m = (x) => x && String(x).toLowerCase().includes(s);
     return [
       ...content.filter((c) => m(c.title) || m(c.code)).slice(0, 6).map((c) => ({ key: `c${c.id}`, label: c.title, type: `Content · ${c.code}`, to: `/content/${c.id}` })),
-      ...campaigns.filter((c) => m(c.name) || m(c.code)).slice(0, 4).map((c) => ({ key: `p${c.id}`, label: c.name, type: 'Kempen', to: `/campaigns/${c.id}` })),
-      ...creators.filter((c) => m(c.name) || m(c.displayName)).slice(0, 4).map((c) => ({ key: `r${c.id}`, label: c.name, type: 'Creator', to: `/creators/${c.id}` })),
-      ...staff.filter((c) => m(c.name)).slice(0, 4).map((c) => ({ key: `s${c.id}`, label: c.name, type: 'Staf', to: `/team/${c.id}` })),
+      ...(ok.has('campaigns') ? campaigns : []).filter((c) => m(c.name) || m(c.code)).slice(0, 4).map((c) => ({ key: `p${c.id}`, label: c.name, type: 'Kempen', to: `/campaigns/${c.id}` })),
+      ...(ok.has('creators') ? creators : []).filter((c) => m(c.name) || m(c.displayName)).slice(0, 4).map((c) => ({ key: `r${c.id}`, label: c.name, type: 'Creator', to: `/creators/${c.id}` })),
+      ...(ok.has('team') ? staff : []).filter((c) => m(c.name)).slice(0, 4).map((c) => ({ key: `s${c.id}`, label: c.name, type: 'Staf', to: `/team/${c.id}` })),
     ];
-  }, [q, content, campaigns, creators, staff]);
+  }, [q, content, campaigns, creators, staff, ok.size]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="menu-wrap global-search" onBlur={() => setTimeout(() => setOpen(false), 150)}>
       <SearchInput value={q} onChange={(v) => { setQ(v); setOpen(true); }} placeholder="Cari content, kempen, creator, staf" />
@@ -145,7 +148,7 @@ export default function Layout() {
   });
   const location = useLocation();
   const pendingApprovals = useMemo(() => content.filter((c) => !c.archived && !c.isSlot && stageOf(config, c.status) === 'review').length, [content, config]);
-  const items = navItems(profile, can(profile, 'content.approve') ? pendingApprovals : 0);
+  const items = navItems(profile, config, can(profile, 'content.approve') ? pendingApprovals : 0);
   const creatorOnly = isCreatorOnly(profile);
   const dataErrors = Object.entries(errors).filter(([, e]) => e);
 

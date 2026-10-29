@@ -3,9 +3,10 @@ import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { missingEnv, firebaseConfig } from './firebase';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
-import { ConfigProvider } from './context/ConfigContext';
+import { ConfigProvider, useConfig } from './context/ConfigContext';
 import { DataProvider } from './context/DataContext';
-import { can, isCreatorOnly } from './lib/permissions';
+import { can } from './lib/permissions';
+import { pageAllowed, homePath, REPORT_PAGES } from './lib/access';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import { Loading, ErrorBox, Empty } from './components/ui';
@@ -81,10 +82,13 @@ function AccountProblem({ status, user, error, logout }) {
   );
 }
 
-// Halaman pengurus. Content Creator dihantar ke Hari ini (/my-tasks).
-function Guard({ action = 'view.all', children }) {
+// Pintu halaman. `page` = kunci dalam src/lib/access.js (boleh diubah Admin dalam Tetapan › Akses role).
+// `action` = kebenaran tindakan tambahan (contoh borang cipta kempen perlukan campaign.manage).
+function Guard({ page, action, children }) {
   const { profile } = useAuth();
-  if (!can(profile, action)) return <Navigate to={isCreatorOnly(profile) ? '/my-tasks' : '/dashboard'} replace />;
+  const config = useConfig();
+  const okPage = page === 'analytics' ? REPORT_PAGES.some((r) => pageAllowed(profile, config, r.key)) : pageAllowed(profile, config, page);
+  if (!okPage || (action && !can(profile, action))) return <Navigate to={homePath(profile, config)} replace />;
   return children;
 }
 
@@ -96,48 +100,57 @@ function NewContentRedirect() {
 }
 
 function Gate() {
-  const { status, user, profile, error, logout } = useAuth();
+  const { status, user, error, logout } = useAuth();
   const location = useLocation();
   if (status === 'loading') return <div className="center-screen"><Loading text="Memuatkan akaun…" /></div>;
   if (status === 'signedOut') return location.pathname === '/login' ? <Login /> : <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (status !== 'ready') return <AccountProblem status={status} user={user} error={error} logout={logout} />;
 
-  const home = isCreatorOnly(profile) ? '/my-tasks' : '/dashboard';
   return (
     <ConfigProvider>
       <DataProvider>
-        <Routes>
-          <Route path="/login" element={<Navigate to={location.state?.from || home} replace />} />
-          <Route element={<Layout />}>
-            <Route index element={<Navigate to={home} replace />} />
-            <Route path="/my-tasks" element={<MyTasks />} />
-            <Route path="/calendar" element={<CalendarPage />} />
-            <Route path="/content/:id" element={<ContentDetail />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/dashboard" element={<Guard><Dashboard /></Guard>} />
-            <Route path="/pipeline" element={<Guard><Pipeline /></Guard>} />
-            <Route path="/content/new" element={<NewContentRedirect />} />
-            <Route path="/team" element={<Guard><Team /></Guard>} />
-            <Route path="/team/:id" element={<Guard><StaffDetail /></Guard>} />
-            <Route path="/creators" element={<Guard><Creators /></Guard>} />
-            <Route path="/creators/new" element={<Guard action="creator.manage"><CreatorForm /></Guard>} />
-            <Route path="/creators/:id" element={<Guard><CreatorDetail /></Guard>} />
-            <Route path="/creators/:id/edit" element={<Guard action="creator.manage"><CreatorForm /></Guard>} />
-            <Route path="/campaigns" element={<Guard><Campaigns /></Guard>} />
-            <Route path="/campaigns/new" element={<Guard action="campaign.manage"><CampaignForm /></Guard>} />
-            <Route path="/campaigns/:id" element={<Guard><CampaignDetail /></Guard>} />
-            <Route path="/campaigns/:id/edit" element={<Guard action="campaign.manage"><CampaignForm /></Guard>} />
-            <Route path="/deliverables" element={<Guard><Deliverables /></Guard>} />
-            <Route path="/library" element={<Guard><Library /></Guard>} />
-            <Route path="/analytics" element={<Guard><Analytics /></Guard>} />
-            <Route path="/approvals" element={<Guard><Approvals /></Guard>} />
-            <Route path="/kpi" element={<Guard><KpiPage /></Guard>} />
-            <Route path="/settings" element={<Guard><SettingsPage /></Guard>} />
-            <Route path="*" element={<NotFound />} />
-          </Route>
-        </Routes>
+        <AppRoutes />
       </DataProvider>
     </ConfigProvider>
+  );
+}
+
+function AppRoutes() {
+  const { profile } = useAuth();
+  const config = useConfig();
+  const location = useLocation();
+  const home = homePath(profile, config);
+  return (
+    <Routes>
+      <Route path="/login" element={<Navigate to={location.state?.from || home} replace />} />
+      <Route element={<Layout />}>
+        <Route index element={<Navigate to={home} replace />} />
+        <Route path="/my-tasks" element={<Guard page="mytasks"><MyTasks /></Guard>} />
+        <Route path="/calendar" element={<Guard page="calendar"><CalendarPage /></Guard>} />
+        <Route path="/content/:id" element={<ContentDetail />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/dashboard" element={<Guard page="dashboard"><Dashboard /></Guard>} />
+        <Route path="/pipeline" element={<Guard page="pipeline"><Pipeline /></Guard>} />
+        <Route path="/content/new" element={<NewContentRedirect />} />
+        <Route path="/team" element={<Guard page="team"><Team /></Guard>} />
+        <Route path="/team/:id" element={<Guard page="team"><StaffDetail /></Guard>} />
+        <Route path="/creators" element={<Guard page="creators"><Creators /></Guard>} />
+        <Route path="/creators/new" element={<Guard page="creators" action="creator.manage"><CreatorForm /></Guard>} />
+        <Route path="/creators/:id" element={<Guard page="creators"><CreatorDetail /></Guard>} />
+        <Route path="/creators/:id/edit" element={<Guard page="creators" action="creator.manage"><CreatorForm /></Guard>} />
+        <Route path="/campaigns" element={<Guard page="campaigns"><Campaigns /></Guard>} />
+        <Route path="/campaigns/new" element={<Guard page="campaigns" action="campaign.manage"><CampaignForm /></Guard>} />
+        <Route path="/campaigns/:id" element={<Guard page="campaigns"><CampaignDetail /></Guard>} />
+        <Route path="/campaigns/:id/edit" element={<Guard page="campaigns" action="campaign.manage"><CampaignForm /></Guard>} />
+        <Route path="/deliverables" element={<Guard page="deliverables"><Deliverables /></Guard>} />
+        <Route path="/library" element={<Guard page="library"><Library /></Guard>} />
+        <Route path="/analytics" element={<Guard page="analytics"><Analytics /></Guard>} />
+        <Route path="/approvals" element={<Guard page="approvals"><Approvals /></Guard>} />
+        <Route path="/kpi" element={<Guard page="kpi"><KpiPage /></Guard>} />
+        <Route path="/settings" element={<Guard page="settings"><SettingsPage /></Guard>} />
+        <Route path="*" element={<NotFound />} />
+      </Route>
+    </Routes>
   );
 }
 

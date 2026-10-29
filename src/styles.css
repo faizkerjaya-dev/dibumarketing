@@ -515,3 +515,7 @@ a.list-row:hover { background: var(--surface-2); color: var(--text); }
   .appr-row > .grow { flex: 1 1 calc(100% - 40px); }
   .appr-row .day-owner { margin-left: 30px; }
 }
+.table th.center, .table td.center { text-align: center; }
+.access-table input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--link); }
+.access-table input[type=checkbox]:disabled { opacity: .35; }
+.access-table tbody tr:hover td { background: var(--surface-2); }

@@ -13,6 +13,7 @@ import { can } from '../lib/permissions';
 import { setById, linkStaffToUser } from '../lib/db';
 import { AppError, explainError } from '../lib/errors';
 import { DEFAULT_CONFIG, ROLES, uid } from '../lib/constants';
+import { PAGES, EDITABLE_ROLES, DEFAULT_ROLE_ACCESS, BLOCKED, roleAccess } from '../lib/access';
 import { STAGES, DEFAULT_STATUSES, statusList, validateStatuses } from '../lib/statuses';
 import { isDebug, log } from '../lib/log';
 import { diagnostics } from '../components/ErrorBoundary';
@@ -54,7 +55,7 @@ function GeneralTab() {
   // di tab Umum tidak memadam status yang sedang digunakan oleh content.
   const save = async () => {
     setBusy(true);
-    const { contentStatuses, updatedAt, ...rest } = draft;
+    const { contentStatuses, roleAccess: _ra, updatedAt, ...rest } = draft;
     await run(() => setById('settings', 'config', { ...rest, updatedBy: profile.name }), 'Tetapan disimpan');
     setBusy(false);
   };
@@ -164,6 +165,53 @@ function StatusTab() {
         {errors.map((e) => <p key={e} className="danger-text small" style={{ marginTop: 8 }}>{e}</p>)}
       </Card>
     </div>
+  );
+}
+
+// Akses halaman setiap role. Admin sentiasa ada semua akses.
+// Kotak yang dimatikan = data halaman itu disekat oleh firestore.rules untuk role tersebut.
+function RoleAccessTab() {
+  const config = useConfig();
+  const { profile } = useAuth();
+  const { run } = useToast();
+  const init = () => Object.fromEntries(EDITABLE_ROLES.map((r) => [r, roleAccess(config, r)]));
+  const [draft, setDraft] = useState(init);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setDraft(init()), [config]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toggle = (r, k) => setDraft((d) => ({ ...d, [r]: d[r].includes(k) ? d[r].filter((x) => x !== k) : [...d[r], k] }));
+  const save = async () => {
+    setBusy(true);
+    await run(() => setById('settings', 'config', { roleAccess: draft, updatedBy: profile.name }), 'Akses role disimpan');
+    setBusy(false);
+  };
+  return (
+    <Card title="Akses role" subtitle="Tanda halaman yang boleh dibuka oleh setiap role. Pengguna dengan lebih dari satu role dapat gabungan semua akses.">
+      <div className="warnbox" style={{ marginBottom: 14 }}>
+        <div>
+          <strong>Apa yang dikawal di sini</strong>
+          <span>Menu dan halaman yang boleh dibuka. Butang tindakan (edit, luluskan, padam, bayaran) tetap ikut role seperti dalam README bahagian 8. Admin sentiasa nampak semua.</span>
+          <span>Kotak kelabu tidak boleh ditanda kerana data halaman itu memang disekat untuk role tersebut (contoh: Content Creator hanya boleh baca content dia sendiri).</span>
+        </div>
+      </div>
+      <div className="table-wrap"><table className="table access-table" style={{ minWidth: 720 }}>
+        <thead><tr><th>Halaman</th><th className="center">Admin</th>{EDITABLE_ROLES.map((r) => <th key={r} className="center">{ROLES[r]}</th>)}</tr></thead>
+        <tbody>{PAGES.map((pg) => (
+          <tr key={pg.key}>
+            <td>{pg.label}</td>
+            <td className="center small strong" style={{ color: 'var(--green-fg)' }} aria-label="Admin sentiasa ada akses">✓</td>
+            {EDITABLE_ROLES.map((r) => {
+              const blocked = (BLOCKED[r] || []).includes(pg.key);
+              return <td key={r} className="center"><input type="checkbox" checked={!blocked && draft[r].includes(pg.key)} disabled={blocked} title={blocked ? 'Data disekat untuk role ini' : ''} aria-label={`${ROLES[r]}: ${pg.label}`} onChange={() => toggle(r, pg.key)} /></td>;
+            })}
+          </tr>
+        ))}</tbody>
+      </table></div>
+      <div className="row gap-sm wrap" style={{ marginTop: 12 }}>
+        <Button onClick={() => setDraft({ ...DEFAULT_ROLE_ACCESS })}>Kembali ke asal</Button>
+        <div className="grow" />
+        <Button variant="primary" busy={busy} onClick={save}>Simpan akses</Button>
+      </div>
+    </Card>
   );
 }
 
@@ -329,6 +377,7 @@ export default function SettingsPage() {
     isAdmin && { key: 'general', label: 'Umum' },
     isAdmin && { key: 'status', label: 'Status' },
     can(profile, 'users.manage') && { key: 'users', label: 'Pengguna' },
+    isAdmin && { key: 'access', label: 'Akses role' },
     { key: 'system', label: 'Semakan sistem' },
   ].filter(Boolean);
   return (
@@ -338,6 +387,7 @@ export default function SettingsPage() {
       {tab === 'general' && isAdmin && <GeneralTab />}
       {tab === 'status' && isAdmin && <StatusTab />}
       {tab === 'users' && can(profile, 'users.manage') && <UsersTab />}
+      {tab === 'access' && isAdmin && <RoleAccessTab />}
       {tab === 'system' && <SystemCheck />}
     </div>
   );

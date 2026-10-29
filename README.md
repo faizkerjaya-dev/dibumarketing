@@ -210,3 +210,28 @@ Mula di **Tetapan › Semakan sistem**: status setiap koleksi data, ujian kebena
 **Wajib selepas deploy:** tampal semula `firestore.rules` dalam Firebase Console dan Publish. Tanpa ini halaman KPI, Pengikut dan link umum akan papar "Akses ditolak".
 
 **Nota kelulusan:** Luluskan → status pertama peringkat *Sedia terbit*. Content tanpa tarikh terbit atau pemilik akan dilangkau (syarat sama seperti Papan kerja). Minta pembetulan → status pertama peringkat *Produksi*, nota disimpan dalam Catatan pasukan dan dihantar sebagai notifikasi (satu notifikasi bagi setiap staf, bukan satu setiap content).
+
+## 14. Akses halaman ikut role (v3.3)
+
+**Tetapan › Akses role** (Admin sahaja): tanda halaman yang boleh dibuka oleh setiap role. Menu, carian dan butang "+ Tambah" mengikut tetapan ini. Pengguna dengan lebih dari satu role dapat gabungan akses. Admin sentiasa nampak semua.
+
+Tetapan asal:
+
+| Halaman | Marketing Mgr | Content Mgr | Creator Mgr | Content Creator | Pemerhati |
+|---|---|---|---|---|---|
+| Dashboard | ✓ | ✓ | ✓ | – | ✓ |
+| Hari ini / Tugasan saya | ✓ | ✓ | ✓ | ✓ | – |
+| Kalendar | ✓ | ✓ | ✓ (baca) | ✓ (content sendiri) | ✓ |
+| Papan kerja | ✓ | ✓ | – | – | – |
+| Kelulusan | ✓ | – | – | – | – |
+| Pasukan | ✓ | ✓ | – | – | – |
+| Creator, Deliverable | ✓ | – | ✓ | – | – |
+| Kempen | ✓ | ✓ (baca) | ✓ | – | ✓ |
+| Pustaka link | ✓ | ✓ | ✓ | ✓ (baca) | – |
+| KPI | ✓ | ✓ | ✓ | KPI saya di Hari ini | ✓ |
+| Laporan | Semua tab | Content, Pengikut, Analisa | Kempen, Creator | – | Semua tab |
+| Tetapan | Semakan sistem | – | – | – | – |
+
+Dua lapisan kawalan:
+1. **Halaman** — Tetapan › Akses role (boleh diubah).
+2. **Tindakan dan data** — `permissions.js` (butang edit, luluskan, padam) dan `firestore.rules` (data). Contoh: Content Creator hanya boleh membaca content yang dia terlibat, walau apa pun tetapan halaman. Sebab itu sesetengah kotak Content Creator dikunci.

@@ -126,7 +126,7 @@ service cloud.firestore {
 
     // Link umum dalam Pustaka link (tidak berkait dengan content tertentu).
     match /libraryLinks/{id} {
-      allow read: if staffReader();
+      allow read: if isActive();
       allow create: if hasAny(['admin', 'marketing_manager', 'content_manager', 'creator_manager'])
         && request.resource.data.authorUid == request.auth.uid;
       allow update: if false;

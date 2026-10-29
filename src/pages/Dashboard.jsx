@@ -10,6 +10,8 @@ import { useConfig } from '../context/ConfigContext';
 import { useQuery } from '../hooks/useFirestore';
 import { stageOf, isArchived } from '../lib/statuses';
 import { can } from '../lib/permissions';
+import { pageAllowed } from '../lib/access';
+import PageLink from '../components/PageLink';
 import { DELIVERABLE_DONE, money, findOpt, TASK_ROLES } from '../lib/constants';
 import { today, monthStart, monthEnd, monthLabel, monthShort, inRange, addDays, fmtDate, parseDate, relDue, fmtDateTime } from '../lib/dates';
 import { staffWorkload, BANDS } from '../lib/workload';
@@ -88,7 +90,7 @@ export default function Dashboard() {
   return (
     <div className="page">
       <PageHeader title={`Hai, ${(profile.name || '').split(' ')[0] || 'anda'}`} crumb={`Ringkasan ${monthLabel(now.getFullYear(), now.getMonth())}`} />
-      {can(profile, 'content.approve') && s.reviewAll > 0 && (
+      {can(profile, 'content.approve') && pageAllowed(profile, config, 'approvals') && s.reviewAll > 0 && (
         <div className="warnbox row" style={{ alignItems: 'center' }}>
           <div><strong>{s.reviewAll} content menunggu kelulusan anda</strong><span>Luluskan sekaligus ikut hari atau minggu.</span></div>
           <span className="grow" />
@@ -106,24 +108,24 @@ export default function Dashboard() {
 
       <div className="split">
         <div className="main">
-          <Card title="Content bulan ini" actions={<><Link to="/calendar">Buka kalendar</Link><Link to="/pipeline">Buka papan kerja</Link></>}>
+          <Card title="Content bulan ini" actions={<><PageLink page="calendar" to="/calendar" hideIfDenied>Buka kalendar</PageLink><PageLink page="pipeline" to="/pipeline" hideIfDenied>Buka papan kerja</PageLink></>}>
             {total ? (
               <div className="stackbar">{s.byStage.filter((x) => x[1]).map(([l, n, tone]) => <div key={l} className={`fill-${tone}`} style={{ flex: n }} title={`${l}: ${n}`} />)}</div>
             ) : <p className="muted small">Tiada content dengan tarikh terbit bulan ini.</p>}
             <div className="stage-tiles">
               {s.byStage.map(([l, n, tone, stage]) => (
-                <Link key={l} to={`/pipeline?stage=${stage}`} className="stat" title={`Buka ${l} dalam Papan kerja`}>
+                <PageLink page="pipeline" key={l} to={`/pipeline?stage=${stage}`} className="stat" title={`Buka ${l} dalam Papan kerja`}>
                   <span className="row gap-sm small muted"><span className={`dot dot-${tone}`} />{l}</span>
                   <span className="stat-value">{n}</span>
-                </Link>
+                </PageLink>
               ))}
             </div>
           </Card>
           <div className="split">
-            <Card title="Beban kerja pasukan" subtitle="Anggaran jam minggu ini berbanding kapasiti" actions={<Link to="/team">Buka pasukan</Link>} className="main">
+            <Card title="Beban kerja pasukan" subtitle="Anggaran jam minggu ini berbanding kapasiti" actions={<PageLink page="team" to="/team" hideIfDenied>Buka pasukan</PageLink>} className="main">
               {!s.loads.length && <Empty title="Belum ada staf" text="Tambah staf dalam Pasukan." />}
               {s.loads.slice(0, 6).map(({ staff, w }) => (
-                <Link key={staff.id} to={`/team/${staff.id}`} className="list-row">
+                <PageLink page="team" key={staff.id} to={`/team/${staff.id}`} className="list-row">
                   <Avatar name={staff.name} />
                   <div className="grow min0 col gap-xs">
                     <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -133,20 +135,20 @@ export default function Dashboard() {
                     <Bar pct={w.pct ?? 0} tone={BANDS[w.band].tone === 'gray' ? 'gray' : BANDS[w.band].tone} />
                   </div>
                   <span className="band-pill"><Pill tone={BANDS[w.band].tone}>{BANDS[w.band].label}</Pill></span>
-                </Link>
+                </PageLink>
               ))}
             </Card>
-            <Card title="Kempen aktif" actions={<Link to="/campaigns">Semua kempen</Link>} className="side">
+            <Card title="Kempen aktif" actions={<PageLink page="campaigns" to="/campaigns" hideIfDenied>Semua kempen</PageLink>} className="side">
               {!s.campaigns.length && <p className="muted small">Tiada kempen aktif.</p>}
               {s.campaigns.map((c) => {
                 const spend = d.campaignCreators.filter((x) => x.campaignId === c.id).reduce((n, x) => n + (x.paidAmount || 0), 0) + (c.expenses || []).reduce((n, e) => n + (Number(e.amount) || 0), 0);
                 const list = d.content.filter((x) => x.campaignId === c.id && !x.archived && !x.isSlot);
                 return (
-                  <Link key={c.id} to={`/campaigns/${c.id}`} className="list-row col" style={{ alignItems: 'stretch' }}>
+                  <PageLink page="campaigns" key={c.id} to={`/campaigns/${c.id}`} className="list-row col" style={{ alignItems: 'stretch' }}>
                     <div className="row gap-sm" style={{ justifyContent: 'space-between' }}><strong>{c.name}</strong><CampaignStatusPill value={c.status} /></div>
                     <div className="row small muted" style={{ justifyContent: 'space-between' }}><span>Belanja {money(spend)} dari {money(c.budget)}</span><span>{list.filter((x) => stageOf(config, x.status) === 'published').length}/{list.length} terbit</span></div>
                     <Bar pct={c.budget ? (spend / c.budget) * 100 : 0} />
-                  </Link>
+                  </PageLink>
                 );
               })}
             </Card>
