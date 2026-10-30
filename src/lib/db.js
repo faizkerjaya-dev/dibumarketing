@@ -640,3 +640,16 @@ export async function importPlanRows(rows, { profile, staffById, createTasks, ta
   await logActivity(profile, { type: 'content_imported', message: `${by(profile)} import ${rows.length} content${source ? ` dari “${source}”` : ''}`, refType: 'calendar', refId: null });
   return { content: rows.length, tasks: taskCount };
 }
+
+// Batalkan satu import: padam semua content dalam kumpulan import itu dan tugasan berkaitan (Admin sahaja).
+// `tasks` = senarai tugasan dari DataContext, supaya tidak perlu ratusan query.
+export async function deleteImportBatch(list, tasks, profile) {
+  if (!list.length) throw new AppError('Tiada content untuk dipadam.');
+  const ids = new Set(list.map((c) => c.id));
+  const relatedTasks = tasks.filter((t) => ids.has(t.contentId));
+  await commitInChunks(relatedTasks, (batch, t) => batch.delete(doc(db, 'tasks', t.id)));
+  await commitInChunks(list, (batch, c) => batch.delete(doc(db, 'content', c.id)));
+  const source = list[0]?.importSource || '';
+  await logActivity(profile, { type: 'import_deleted', message: `${by(profile)} padam import${source ? ` “${source}”` : ''}: ${list.length} content dan ${relatedTasks.length} tugasan`, refType: 'calendar', refId: null });
+  return { content: list.length, tasks: relatedTasks.length };
+}

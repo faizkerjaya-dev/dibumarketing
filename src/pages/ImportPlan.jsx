@@ -11,17 +11,86 @@ import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
 import { useQuery } from '../hooks/useFirestore';
 import { can } from '../lib/permissions';
-import { importPlanRows, setById } from '../lib/db';
-import { statusForStage } from '../lib/statuses';
+import { importPlanRows, setById, deleteImportBatch } from '../lib/db';
+import { statusForStage, stageOf } from '../lib/statuses';
 import { readWorkbook, detectPlan, addDaysIso, toWeekday, TEMPLATE_HEADER, TEMPLATE_EXAMPLE } from '../lib/importPlan';
 import { writeXlsx } from '../lib/xlsx';
 import { typeColor } from '../lib/colors';
-import { fmtDate } from '../lib/dates';
-import { PageHeader, Card, Button, Field, Input, Select, Pill, Empty, Loading, ErrorBox } from '../components/ui';
+import { fmtDate, fmtDateTime } from '../lib/dates';
+import { PageHeader, Card, Button, Field, Input, Select, Pill, Empty, Loading, ErrorBox, Modal } from '../components/ui';
+import { Trash2 } from 'lucide-react';
 
 const MAP_KEY = 'dibu_import_owner_map';
 const readMap = () => { try { return JSON.parse(localStorage.getItem(MAP_KEY) || '{}'); } catch { return {}; } };
 const GENERAL = 'General';
+
+// Senarai import terdahulu, dikumpul ikut masa import. Admin boleh padam satu import sekaligus.
+function ImportHistory() {
+  const { content, tasks } = useData();
+  const { profile } = useAuth();
+  const config = useConfig();
+  const { run } = useToast();
+  const isAdmin = can(profile, 'settings.manage');
+  const [target, setTarget] = useState(null);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const batches = useMemo(() => {
+    const m = new Map();
+    content.filter((c) => c.importedAt).forEach((c) => { m.set(c.importedAt, [...(m.get(c.importedAt) || []), c]); });
+    return [...m.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([at, list]) => {
+      const dates = list.map((c) => c.publishDate).filter(Boolean).sort();
+      const ids = new Set(list.map((c) => c.id));
+      return {
+        at, list, source: list[0].importSource || 'Fail tanpa nama', by: list[0].createdBy || '',
+        from: dates[0], to: dates[dates.length - 1],
+        touched: list.filter((c) => stageOf(config, c.status) !== 'idea').length,
+        taskCount: tasks.filter((t) => ids.has(t.contentId)).length,
+      };
+    });
+  }, [content, tasks, config]);
+
+  if (!batches.length) return null;
+
+  const doDelete = async () => {
+    setBusy(true);
+    const res = await run(() => deleteImportBatch(target.list, tasks, profile));
+    setBusy(false);
+    if (res) {
+      setTarget(null); setTyped('');
+      run(async () => {}, `${res.content} content dan ${res.tasks} tugasan dipadam`);
+    }
+  };
+
+  return (
+    <Card title="Import terdahulu" subtitle={isAdmin ? 'Tersalah import? Padam satu import sekaligus. Hanya Admin boleh padam.' : 'Hanya Admin boleh memadam import.'}>
+      <div className="col">
+        {batches.map((b) => (
+          <div key={b.at} className="list-row wrap">
+            <span className="grow min0" style={{ flexBasis: 280 }}>
+              <strong>{b.source}</strong>
+              <span className="small muted block">{fmtDateTime(b.at)}{b.by ? ` · oleh ${b.by}` : ''} · pos {fmtDate(b.from)} – {fmtDate(b.to, { year: 'numeric' })}</span>
+            </span>
+            <Pill tone="gray">{b.list.length} content</Pill>
+            {b.taskCount > 0 && <Pill tone="gray">{b.taskCount} tugasan</Pill>}
+            {b.touched > 0 && <Pill tone="amber">{b.touched} sudah bergerak dari Idea</Pill>}
+            {isAdmin && <Button size="sm" variant="danger" icon={Trash2} onClick={() => { setTarget(b); setTyped(''); }}>Padam import ini</Button>}
+          </div>
+        ))}
+      </div>
+      {target && (
+        <Modal open title="Padam import" onClose={() => setTarget(null)} footer={<>
+          <Button onClick={() => setTarget(null)}>Batal</Button>
+          <Button variant="danger" icon={Trash2} busy={busy} disabled={typed.trim().toUpperCase() !== 'PADAM'} onClick={doDelete}>Padam {target.list.length} content</Button>
+        </>}>
+          <p>Ini akan memadam <strong>{target.list.length} content</strong> dari “{target.source}” dan <strong>{target.taskCount} tugasan</strong> berkaitan. Tindakan ini tidak boleh dibatalkan.</p>
+          {target.touched > 0 && <div className="warnbox"><div><strong>{target.touched} content sudah diusahakan</strong><span>Statusnya bukan Idea lagi. Brief, link dan senarai semak dalam content itu juga akan hilang.</span></div></div>}
+          <Field label="Taip PADAM untuk sahkan"><Input value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus placeholder="PADAM" /></Field>
+        </Modal>
+      )}
+    </Card>
+  );
+}
 
 export default function ImportPlan() {
   const { staff, staffById, content } = useData();
@@ -258,6 +327,8 @@ export default function ImportPlan() {
           <Button variant="primary" icon={Upload} busy={busy} disabled={!toImport.length} onClick={doImport}>Import {toImport.length} content</Button>
         </div>
       </>}
+
+      {!plan && <ImportHistory />}
 
       {!plan && !done && (
         <Card title="Format yang disokong">

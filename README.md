@@ -248,3 +248,5 @@ Dua lapisan kawalan:
 Pilihan semasa import: platform, berapa hari shoot sebelum pos (dibaca dari tab Panduan jika ada), alih shoot hujung minggu ke Jumaat, jenis yang dijadikan **General** (tajuk diganti "General: isi idea kemudian"), padanan email → profil staf (diingat untuk import seterusnya), dan cipta tugasan Shooting. Content dengan tarikh pos dan tajuk yang sama tidak diimport dua kali. Tanda `*` dan warna sel beg kuning disimpan dalam nota brief.
 
 Email dipadankan dengan email dalam profil staf (Pasukan) atau email akaun log masuk yang dipautkan ke staf.
+
+**Padam import (Admin sahaja).** Tersalah import? Buka Kalendar › Import Excel. Bahagian *Import terdahulu* menyenaraikan setiap import (nama fail, masa, siapa, julat tarikh). Klik **Padam import ini**, taip `PADAM` untuk sahkan. Semua content dari import itu dan tugasan Shooting berkaitan dipadam. Jika ada content yang sudah bergerak dari status Idea, amaran dipaparkan dahulu.
