@@ -31,6 +31,7 @@ import MyTasks from './pages/MyTasks';
 import Notifications from './pages/Notifications';
 import Approvals from './pages/Approvals';
 import KpiPage from './pages/Kpi';
+import ImportPlan from './pages/ImportPlan';
 
 function NotFound() {
   return (
@@ -147,6 +148,7 @@ function AppRoutes() {
         <Route path="/analytics" element={<Guard page="analytics"><Analytics /></Guard>} />
         <Route path="/approvals" element={<Guard page="approvals"><Approvals /></Guard>} />
         <Route path="/kpi" element={<Guard page="kpi"><KpiPage /></Guard>} />
+        <Route path="/import" element={<Guard page="calendar" action="content.create"><ImportPlan /></Guard>} />
         <Route path="/settings" element={<Guard page="settings"><SettingsPage /></Guard>} />
         <Route path="*" element={<NotFound />} />
       </Route>

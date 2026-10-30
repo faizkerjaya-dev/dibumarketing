@@ -36,7 +36,7 @@ export function breakdown(mode, list, { config, staffById, staffColor }) {
   return [...m.values()].sort((a, b) => b.n - a.n);
 }
 
-export default function DayModal({ day, items, mode, canCreate, onClose, onQuickAdd, onOpenBrief, onOpenSlot, saving }) {
+export default function DayModal({ day, items, mode, dateKey = 'publishDate', canCreate, onClose, onQuickAdd, onOpenBrief, onOpenSlot, saving }) {
   const navigate = useNavigate();
   const config = useConfig();
   const { staffById, staffColor } = useData();
@@ -69,14 +69,14 @@ export default function DayModal({ day, items, mode, canCreate, onClose, onQuick
       open
       wide
       onClose={onClose}
-      title={`${fmtDate(day, { weekday: 'long', year: 'numeric' })}`}
+      title={`${fmtDate(day, { weekday: 'long', year: 'numeric' })}${dateKey === 'shootDate' ? ' · jadual shoot' : ''}`}
       footer={canCreate && <>
         <Button icon={FileText} onClick={() => onOpenBrief(day, platform)} className="mr-auto">Brief penuh</Button>
         <Button onClick={onClose}>Tutup</Button>
       </>}
     >
       <div className="day-summary">
-        <strong>{real.length} content</strong>
+        <strong>{real.length} content {dateKey === 'shootDate' ? 'untuk dishoot' : 'dipos'}</strong>
         {slots.length > 0 && <span className="muted">· {slots.length} slot belum ada tajuk</span>}
         <span className="grow" />
         {parts.map((p) => <span key={p.key} className="legend-chip"><span className="dot" style={{ background: p.color }} />{p.label} <strong>{p.n}</strong></span>)}
@@ -116,12 +116,15 @@ export default function DayModal({ day, items, mode, canCreate, onClose, onQuick
               style={{ '--bar': colorFor(mode, c, ctx) }}
               onClick={() => (c.isSlot ? onOpenSlot(c) : navigate(`/content/${c.id}`))}
             >
-              <span className="day-time">{c.publishTime || '—'}</span>
+              {dateKey === 'shootDate'
+                ? <span className="day-time day-post"><span>Pos</span>{c.publishDate ? fmtDate(c.publishDate) : '—'}</span>
+                : <span className="day-time">{c.publishTime || '—'}</span>}
               <span className="grow min0">
                 <span className="day-title">{c.isSlot ? (c.slotLabel || 'Slot kosong') : c.title}</span>
                 <span className="day-meta">
                   <span className="muted">{c.code}</span>
                   {c.platform && <span className="tag">{c.platform}</span>}
+                  {dateKey !== 'shootDate' && c.shootDate && <span className="muted">Shoot {fmtDate(c.shootDate)}</span>}
                   <span className="meta-dot"><span className="dot" style={{ background: typeColor(config, c.type) }} />{c.type || 'Jenis belum ditetapkan'}</span>
                 </span>
               </span>

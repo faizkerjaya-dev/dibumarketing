@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { collection, query, where } from 'firebase/firestore';
-import { ExternalLink, Pencil, Plus, Trash2, Archive, ArchiveRestore, BarChart3, ChevronRight, CalendarDays, Hash, User, Flag, Megaphone } from 'lucide-react';
+import { ExternalLink, Pencil, Plus, Trash2, Archive, ArchiveRestore, BarChart3, ChevronRight, CalendarDays, Clapperboard, Hash, User, Flag, Megaphone } from 'lucide-react';
 import { db } from '../firebase';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -215,7 +215,8 @@ export default function ContentDetail() {
         </>}
       />
       <div className="chips meta-chips">
-        {chip(<CalendarDays size={13} />, content.publishDate ? `${fmtDate(content.publishDate, { weekday: 'short' })}${content.publishTime ? `, ${content.publishTime}` : ''}` : 'Tiada tarikh', canEdit ? () => setEditOpen(true) : null)}
+        {chip(<CalendarDays size={13} />, content.publishDate ? `Pos ${fmtDate(content.publishDate, { weekday: 'short' })}${content.publishTime ? `, ${content.publishTime}` : ''}` : 'Tiada tarikh pos', canEdit ? () => setEditOpen(true) : null)}
+        {content.shootDate && chip(<Clapperboard size={13} />, `Shoot ${fmtDate(content.shootDate, { weekday: 'short' })}`, canEdit ? () => setEditOpen(true) : null)}
         {chip(<Hash size={13} />, content.platform || 'Platform?', canEdit ? () => setEditOpen(true) : null)}
         {chip(<User size={13} />, content.ownerName || 'Tiada pemilik', canEdit ? () => setEditOpen(true) : null)}
         {content.pillar && chip(<Flag size={13} />, content.pillar, canEdit ? () => setEditOpen(true) : null)}

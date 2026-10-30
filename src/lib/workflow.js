@@ -17,7 +17,7 @@ export function missingForStatus(config, content, statusKey) {
 
 export const FIELD_LABELS = {
   title: 'Tajuk content',
-  publishDate: 'Tarikh terbit',
+  publishDate: 'Tarikh pos',
   publishUrl: 'Link post',
   publishedDate: 'Tarikh sebenar terbit',
   ownerStaffId: 'Pemilik content',

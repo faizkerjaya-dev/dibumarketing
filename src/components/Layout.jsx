@@ -51,6 +51,7 @@ function CreateMenu({ profile }) {
   }, []);
   const items = [
     can(profile, 'content.create') && ok.has('calendar') && ['Content baharu', '/calendar?add=1'],
+    can(profile, 'content.create') && ok.has('calendar') && ['Import pelan Excel', '/import'],
     can(profile, 'library.add') && ok.has('library') && ['Link ke pustaka', '/library?add=1'],
     can(profile, 'campaign.manage') && ok.has('campaigns') && ['Kempen baharu', '/campaigns/new'],
     can(profile, 'creator.manage') && ok.has('creators') && ['Creator baharu', '/creators/new'],

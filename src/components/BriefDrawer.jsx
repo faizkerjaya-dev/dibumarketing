@@ -14,7 +14,7 @@ import { missingForStatus, FIELD_LABELS } from '../lib/workflow';
 import { AppError } from '../lib/errors';
 import { TASK_ROLES, PRIORITIES } from '../lib/constants';
 import { typeColor } from '../lib/colors';
-import { today } from '../lib/dates';
+import { today, daysBetween } from '../lib/dates';
 import { Button, Field, Input, Select, Textarea } from './ui';
 
 const LAST = 'dibu_last_add';
@@ -50,6 +50,7 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
       type: base.type || last.type || '',
       publishDate: base.publishDate || preset.date || today(),
       publishTime: base.publishTime || '',
+      shootDate: base.shootDate || preset.shootDate || '',
       ownerStaffId: base.ownerStaffId || preset.ownerStaffId || last.ownerStaffId || profile.staffId || '',
       pillar: base.pillar || '',
       product: base.product || '',
@@ -73,7 +74,7 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
     setBusy(true);
     const ok = await run(async () => {
       const payload = {
-        title: f.title, platform: f.platform, publishDate: f.publishDate, publishTime: f.publishTime,
+        title: f.title, platform: f.platform, publishDate: f.publishDate, publishTime: f.publishTime, shootDate: f.shootDate || '',
         ownerStaffId: f.ownerStaffId, pillar: f.pillar, product: f.product, campaignId: f.campaignId,
         campaignName: campaigns.find((c) => c.id === f.campaignId)?.name || '',
         priority: f.priority, type: f.type, publishAccount: f.publishAccount, status: f.status,
@@ -133,8 +134,9 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
           </Field>
 
           <div className="grid-2">
-            <Field label="Tarikh terbit"><Input type="date" value={f.publishDate} onChange={set('publishDate')} /></Field>
-            {mode === 'full' && <Field label="Masa"><Input type="time" value={f.publishTime} onChange={set('publishTime')} /></Field>}
+            <Field label="Tarikh pos" hint="Bila video ini dipos."><Input type="date" value={f.publishDate} onChange={set('publishDate')} /></Field>
+            <Field label="Tarikh shoot" hint={f.shootDate && f.publishDate ? `${daysBetween(f.shootDate, f.publishDate)} hari sebelum pos` : 'Pilihan'}><Input type="date" value={f.shootDate} max={f.publishDate || undefined} onChange={set('shootDate')} /></Field>
+            {mode === 'full' && <Field label="Masa pos"><Input type="time" value={f.publishTime} onChange={set('publishTime')} /></Field>}
           </div>
 
           <Field label="Platform" group>

@@ -235,3 +235,16 @@ Tetapan asal:
 Dua lapisan kawalan:
 1. **Halaman** — Tetapan › Akses role (boleh diubah).
 2. **Tindakan dan data** — `permissions.js` (butang edit, luluskan, padam) dan `firestore.rules` (data). Contoh: Content Creator hanya boleh membaca content yang dia terlibat, walau apa pun tetapan halaman. Sebab itu sesetengah kotak Content Creator dikunci.
+
+## 15. Tarikh shoot dan Import pelan Excel (v3.4)
+
+**Tarikh pos dan tarikh shoot.** Setiap content kini ada *Tarikh pos* (bila dipos) dan *Tarikh shoot* (pilihan). Dalam Kalendar, pilih **Ikut tarikh: Pos / Shoot**. Mod Shoot memaparkan jadual shoot, dan setiap content dalam popup menunjukkan tarikh posnya. Seret content dalam mod Shoot hanya menukar tarikh shoot.
+
+**Import Excel** (Kalendar › Import Excel, atau menu + Tambah). Dua format dikesan automatik:
+
+1. *Pelan matriks* seperti tab "Pelan 30 Hari": lajur `Tarikh post`, `Tema`, satu lajur setiap jenis content, dan lajur email ahli berisi huruf A atau B. Baris "Creator A · …" / "Creator B · …" di atas kepala menentukan jenis mana milik set A atau B.
+2. *Senarai*: muat turun templat dari halaman Import. Lajur: Tarikh pos, Masa, Tajuk, Jenis content, Kategori, Platform, Pemilik (email), Tarikh shoot, Hook, Nota.
+
+Pilihan semasa import: platform, berapa hari shoot sebelum pos (dibaca dari tab Panduan jika ada), alih shoot hujung minggu ke Jumaat, jenis yang dijadikan **General** (tajuk diganti "General: isi idea kemudian"), padanan email → profil staf (diingat untuk import seterusnya), dan cipta tugasan Shooting. Content dengan tarikh pos dan tajuk yang sama tidak diimport dua kali. Tanda `*` dan warna sel beg kuning disimpan dalam nota brief.
+
+Email dipadankan dengan email dalam profil staf (Pasukan) atau email akaun log masuk yang dipautkan ke staf.

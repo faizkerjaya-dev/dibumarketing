@@ -591,3 +591,52 @@ export async function bulkReturn(list, note, { config, profile, staffById }) {
   await logActivity(profile, { type: 'content_bulk_returned', message: `${by(profile)} pulangkan ${list.length} content untuk pembetulan`, refType: 'content', refId: list.length === 1 ? list[0].id : null });
   return list.length;
 }
+
+/* ---------------- Import pelan dari Excel ---------------- */
+
+// Cipta banyak content sekaligus (dan tugasan shoot jika diminta). Kod DBU ditempah dalam SATU transaction.
+// rows: [{ title, publishDate, shootDate, publishTime, type, pillar, platform, ownerStaffId, status, brief }]
+export async function importPlanRows(rows, { profile, staffById, createTasks, taskRole = 'shooting', source = '' }) {
+  if (!rows.length) throw new AppError('Tiada baris untuk diimport.');
+  const codes = await reserveCodes('content', 'DBU', rows.length);
+  const at = nowIso();
+  const prepared = rows.map((r, i) => {
+    const owner = staffById[r.ownerStaffId];
+    return { ref: doc(collection(db, 'content')), owner, data: r, code: codes[i] };
+  });
+  await commitInChunks(prepared, (batch, p) => {
+    const { data: r, owner } = p;
+    batch.set(p.ref, {
+      ...blankContent({
+        code: p.code, title: r.title, type: r.type || '', pillar: r.pillar || '', platform: r.platform || '',
+        publishDate: r.publishDate || '', publishTime: r.publishTime || '', shootDate: r.shootDate || '',
+        status: r.status, priority: r.priority || 'medium', brief: r.brief || {},
+        ownerStaffId: owner ? owner.id : '', ownerName: owner?.name || '',
+        assigneeStaffIds: owner ? [owner.id] : [], assigneeUids: owner?.userUid ? [owner.userUid] : [],
+        importSource: source, importedAt: at,
+      }),
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: by(profile), updatedBy: by(profile),
+    });
+  });
+  let taskCount = 0;
+  if (createTasks) {
+    const withTask = prepared.filter((p) => p.owner && (p.data.shootDate || p.data.publishDate));
+    taskCount = withTask.length;
+    await commitInChunks(withTask, (batch, p) => {
+      batch.set(doc(collection(db, 'tasks')), {
+        ...taskPayload({ role: taskRole, deadline: p.data.shootDate || p.data.publishDate, priority: 'medium', status: 'todo', description: '' }, { id: p.ref.id, code: p.code, title: p.data.title, campaignId: '', campaignName: '' }, p.owner),
+        assignedAt: at, completedAt: null,
+        history: [{ at, by: by(profile), text: `Ditugaskan kepada ${p.owner.name} (import pelan)` }],
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: by(profile), updatedBy: by(profile),
+      });
+    });
+  }
+  // Satu notifikasi bagi setiap staf, bukan satu bagi setiap content.
+  const perOwner = {};
+  prepared.forEach((p) => { if (p.owner?.userUid && p.owner.userUid !== profile?.uid) perOwner[p.owner.userUid] = (perOwner[p.owner.userUid] || 0) + 1; });
+  await commitInChunks(Object.entries(perOwner), (batch, [toUid, n]) => {
+    batch.set(doc(collection(db, 'notifications')), { toUid, title: `${n} content baharu ditugaskan kepada anda`, body: source ? `Dari pelan: ${source}` : '', link: '/my-tasks', read: false, createdAt: serverTimestamp(), createdAtIso: at });
+  });
+  await logActivity(profile, { type: 'content_imported', message: `${by(profile)} import ${rows.length} content${source ? ` dari “${source}”` : ''}`, refType: 'calendar', refId: null });
+  return { content: rows.length, tasks: taskCount };
+}

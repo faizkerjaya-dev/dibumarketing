@@ -6,7 +6,7 @@
 // Cara menambah: klik hari → taip tajuk dalam popup; Rancang sebulan (slot); Bank idea (seret ke tarikh).
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Plus, CalendarRange, ListChecks, GripVertical } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, CalendarRange, ListChecks, GripVertical, FileSpreadsheet } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigContext';
@@ -39,6 +39,9 @@ export default function CalendarPage() {
 
   const [view, setView] = useState('month');
   const [mode, setMode] = useState(readMode);
+  // Kalendar boleh disusun ikut tarikh POS (lalai) atau tarikh SHOOT.
+  const [dk, setDk] = useState('publishDate');
+  const isShoot = dk === 'shootDate';
   const [anchor, setAnchor] = useState(today());
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [openDay, setOpenDay] = useState(null);
@@ -68,10 +71,10 @@ export default function CalendarPage() {
   const items = useMemo(() => applyFilters(live, filters), [live, filters]);
   const byDay = useMemo(() => {
     const m = {};
-    items.forEach((c) => { if (c.publishDate) (m[c.publishDate] = m[c.publishDate] || []).push(c); });
+    items.forEach((c) => { const d = c[dk]; if (d) (m[d] = m[d] || []).push(c); });
     Object.values(m).forEach((l) => l.sort((a, b) => Number(a.isSlot) - Number(b.isSlot) || (a.publishTime || '99').localeCompare(b.publishTime || '99')));
     return m;
-  }, [items]);
+  }, [items, dk]);
   const ideas = useMemo(() => items.filter((c) => !c.publishDate).sort((a, b) => (b.code || '').localeCompare(a.code || '')), [items]);
 
   const a = parseDate(anchor);
@@ -105,7 +108,7 @@ export default function CalendarPage() {
       title: t,
       platform,
       type: type || '',
-      publishDate: openDay,
+      ...(isShoot ? { shootDate: openDay } : { publishDate: openDay }),
       ownerStaffId: readLast().ownerStaffId || profile.staffId || '',
       status: statusForStage(config, 'idea'),
     }, { profile, staffById }), 'Content ditambah');
@@ -119,17 +122,22 @@ export default function CalendarPage() {
     setDrag(null);
     if (!d) return;
     const c = content.find((x) => x.id === d.id);
-    if (!c || c.publishDate === day) return;
+    if (!c || c[dk] === day) return;
+    if (isShoot) {
+      if (c.publishDate && day > c.publishDate) { run(async () => { throw Object.assign(new Error('Tarikh shoot mesti sebelum tarikh pos.'), { code: 'validation' }); }); return; }
+      await run(() => updateById('content', c.id, { shootDate: day }, profile), `Tarikh shoot ditukar ke ${fmtDate(day)}`);
+      return;
+    }
     if (!c.publishDate) {
       await run(() => scheduleIdea(c, day, profile), `Dijadualkan ${fmtDate(day)}`);
       return;
     }
-    const ok = await confirm(`Pindah tarikh terbit “${c.title || c.slotLabel}” dari ${fmtDate(c.publishDate)} ke ${fmtDate(day)}?\n\nDeadline skrip, shooting, editing dan approval tidak berubah.`, { title: 'Pindah tarikh terbit', okLabel: 'Pindah' });
+    const ok = await confirm(`Pindah tarikh pos “${c.title || c.slotLabel}” dari ${fmtDate(c.publishDate)} ke ${fmtDate(day)}?\n\nTarikh shoot dan deadline tugasan tidak berubah.`, { title: 'Pindah tarikh pos', okLabel: 'Pindah' });
     if (!ok) return;
     await run(async () => {
       await updateById('content', c.id, { publishDate: day }, profile);
       await logActivity(profile, { type: 'publish_date_changed', message: `${profile.name} pindah tarikh terbit “${c.title || c.slotLabel || c.code}” ke ${fmtDate(day)}`, refType: 'content', refId: c.id });
-    }, 'Tarikh terbit dikemas kini');
+    }, 'Tarikh pos dikemas kini');
   };
 
   const submitIdea = async () => {
@@ -159,7 +167,7 @@ export default function CalendarPage() {
     const real = list.filter((c) => !c.isSlot);
     const slots = list.length - real.length;
     const parts = breakdown(mode, real, ctx);
-    const late = real.filter((c) => c.publishDate < t0 && findStatus(config, c.status).stage !== 'published').length;
+    const late = isShoot ? 0 : real.filter((c) => c.publishDate < t0 && findStatus(config, c.status).stage !== 'published').length;
     const out = parseDate(day).getMonth() !== month;
     return (
       <button
@@ -174,7 +182,7 @@ export default function CalendarPage() {
         {real.length > 0 && (
           <span className="cal-count">
             <strong>{real.length}</strong>
-            <span>content</span>
+            <span>{isShoot ? 'shoot' : 'content'}</span>
           </span>
         )}
         {real.length > 0 && (
@@ -207,7 +215,7 @@ export default function CalendarPage() {
         <span className="week-title">{c.isSlot ? (c.slotLabel || 'Slot kosong') : c.title}</span>
         {!c.isSlot && (
           <span className="week-meta">
-            {c.publishTime && <span>{c.publishTime}</span>}
+            {isShoot ? c.publishDate && <span className="week-post">Pos {fmtDate(c.publishDate)}</span> : c.publishTime && <span>{c.publishTime}</span>}
             {c.platform && <span className="tag" title={c.platform}>{platformShort(c.platform)}</span>}
             {ownerName && <span className="row gap-xs min0"><Avatar name={ownerName} size={18} /><span className="ellipsis">{ownerName.split(' ')[0]}</span></span>}
           </span>
@@ -221,13 +229,14 @@ export default function CalendarPage() {
       <PageHeader
         title={creatorOnly ? 'Kalendar saya' : 'Kalendar'}
         actions={!creatorOnly && <>
+          {canCreate && <Button icon={FileSpreadsheet} onClick={() => navigate('/import')}>Import Excel</Button>}
           {canCreate && <Button icon={CalendarRange} onClick={() => setPlanOpen(true)}>Rancang sebulan</Button>}
           {canCreate && monthSlots.length > 0 && <Button icon={ListChecks} onClick={() => setBulkOpen(true)}>Isi {monthSlots.length} slot</Button>}
           {canCreate && <Button variant="primary" icon={Plus} onClick={() => setDrawer({ preset: { date: today() } })}>Tambah content</Button>}
         </>}
       >
         <p className="muted small" style={{ marginTop: 4 }}>
-          {items.filter((c) => c.publishDate >= monthFrom && c.publishDate <= monthTo && !c.isSlot).length} content bulan ini
+          {items.filter((c) => c[dk] >= monthFrom && c[dk] <= monthTo && !c.isSlot).length} content {isShoot ? 'dishoot' : 'dipos'} bulan ini
           {monthSlots.length > 0 && ` · ${monthSlots.length} slot belum ada tajuk`}
         </p>
       </PageHeader>
@@ -238,6 +247,8 @@ export default function CalendarPage() {
         <Button size="sm" onClick={() => setAnchor(today())}>Hari ini</Button>
         <h2 style={{ margin: '0 6px', fontSize: 17 }}>{title}</h2>
         <div className="grow" />
+        <span className="small muted">Ikut tarikh</span>
+        <Segmented value={dk} onChange={setDk} options={[{ key: 'publishDate', label: 'Pos' }, { key: 'shootDate', label: 'Shoot' }]} />
         <span className="small muted">Warna ikut</span>
         <Segmented value={mode} onChange={setMode} options={[{ key: 'status', label: 'Status' }, { key: 'type', label: 'Jenis' }, { key: 'owner', label: 'Pemilik' }]} />
         <Segmented value={view} onChange={setView} options={[{ key: 'month', label: 'Bulan' }, { key: 'week', label: 'Minggu' }, { key: 'list', label: 'Senarai' }]} />
@@ -281,14 +292,15 @@ export default function CalendarPage() {
           {view === 'list' && (
             <Card>
               {(() => {
-                const rows = items.filter((c) => c.publishDate >= monthFrom && c.publishDate <= monthTo).sort((x, y) => `${x.publishDate}${x.publishTime || ''}`.localeCompare(`${y.publishDate}${y.publishTime || ''}`));
+                const rows = items.filter((c) => c[dk] >= monthFrom && c[dk] <= monthTo).sort((x, y) => `${x[dk]}${x.publishTime || ''}`.localeCompare(`${y[dk]}${y.publishTime || ''}`));
                 if (!rows.length) return <Empty title="Tiada content bulan ini" text="Tukar bulan atau kosongkan penapis." />;
                 return (
                   <div className="table-wrap"><table className="table" style={{ minWidth: 760 }}>
-                    <thead><tr><th>Terbit</th><th>Content</th><th>Jenis</th><th>Platform</th><th>Pemilik</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Pos</th><th>Shoot</th><th>Content</th><th>Jenis</th><th>Platform</th><th>Pemilik</th><th>Status</th></tr></thead>
                     <tbody>{rows.map((c) => (
                       <tr key={c.id} className="clickable" onClick={() => (c.isSlot ? setDrawer({ content: c }) : navigate(`/content/${c.id}`))}>
-                        <td>{fmtDate(c.publishDate, { weekday: 'short' })}{c.publishTime ? `, ${c.publishTime}` : ''}</td>
+                        <td className={isShoot ? '' : 'strong'}>{c.publishDate ? fmtDate(c.publishDate, { weekday: 'short' }) : '—'}{c.publishTime ? `, ${c.publishTime}` : ''}</td>
+                        <td className={isShoot ? 'strong' : ''}>{c.shootDate ? fmtDate(c.shootDate, { weekday: 'short' }) : '—'}</td>
                         <td>{c.isSlot ? <span className="muted">{c.slotLabel || 'Slot kosong'}</span> : <><strong>{c.title}</strong><div className="small muted">{c.code}</div></>}</td>
                         <td><span className="meta-dot"><span className="dot" style={{ background: typeColor(config, c.type) }} />{c.type || '—'}</span></td>
                         <td>{c.platform || '—'}</td>
@@ -364,6 +376,7 @@ export default function CalendarPage() {
         day={openDay}
         items={openDay ? byDay[openDay] || [] : []}
         mode={mode}
+        dateKey={dk}
         canCreate={canCreate}
         saving={saving}
         onClose={() => setOpenDay(null)}
