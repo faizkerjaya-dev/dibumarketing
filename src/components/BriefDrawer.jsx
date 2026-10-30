@@ -48,7 +48,7 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
       title: base.title || '',
       platform: base.platform || preset.platform || last.platform || config.platforms[0] || '',
       type: base.type || last.type || '',
-      publishDate: base.publishDate || preset.date || today(),
+      publishDate: base.publishDate || preset.date || (preset.shootDate ? '' : today()),
       publishTime: base.publishTime || '',
       shootDate: base.shootDate || preset.shootDate || '',
       ownerStaffId: base.ownerStaffId || preset.ownerStaffId || last.ownerStaffId || profile.staffId || '',
@@ -61,7 +61,7 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
       brief: { ...EMPTY_BRIEF, ...(base.brief || {}) },
     });
     setTimeout(() => titleRef.current?.focus(), 60);
-  }, [open, content, preset.date, preset.platform, preset.status, preset.ownerStaffId, preset.campaignId, config, profile.staffId]);
+  }, [open, content, preset.date, preset.shootDate, preset.platform, preset.status, preset.ownerStaffId, preset.campaignId, config, profile.staffId]);
 
   // Render pertama selepas panel dibuka berlaku SEBELUM useEffect di atas mengisi borang.
   // Tanpa semakan ini, f.title masih undefined dan panel akan crash.

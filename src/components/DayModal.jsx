@@ -36,7 +36,7 @@ export function breakdown(mode, list, { config, staffById, staffColor }) {
   return [...m.values()].sort((a, b) => b.n - a.n);
 }
 
-export default function DayModal({ day, items, mode, dateKey = 'publishDate', canCreate, onClose, onQuickAdd, onOpenBrief, onOpenSlot, saving }) {
+export default function DayModal({ day, items, postItems = [], mode, dateKey = 'publishDate', canCreate, onClose, onQuickAdd, onOpenBrief, onOpenSlot, saving }) {
   const navigate = useNavigate();
   const config = useConfig();
   const { staffById, staffColor } = useData();
@@ -122,9 +122,10 @@ export default function DayModal({ day, items, mode, dateKey = 'publishDate', ca
               <span className="grow min0">
                 <span className="day-title">{c.isSlot ? (c.slotLabel || 'Slot kosong') : c.title}</span>
                 <span className="day-meta">
-                  <span className="muted">{c.code}</span>
+                  <span className="code-tag">{c.code}</span>
                   {c.platform && <span className="tag">{c.platform}</span>}
                   {dateKey !== 'shootDate' && c.shootDate && <span className="muted">Shoot {fmtDate(c.shootDate)}</span>}
+                  {dateKey === 'shootDate' && !c.isSlot && !c.shootDate && <span className="danger-text">Tarikh shoot belum ditetapkan</span>}
                   <span className="meta-dot"><span className="dot" style={{ background: typeColor(config, c.type) }} />{c.type || 'Jenis belum ditetapkan'}</span>
                 </span>
               </span>
@@ -136,6 +137,34 @@ export default function DayModal({ day, items, mode, dateKey = 'publishDate', ca
           );
         })}
       </div>
+
+      {dateKey === 'shootDate' && (
+        <div className="day-posts">
+          <div className="row gap-sm" style={{ justifyContent: 'space-between' }}>
+            <strong>Perlu dipos hari ini ({postItems.length})</strong>
+            <span className="small muted">Video yang sudah dishoot sebelum ini, ikut ID content</span>
+          </div>
+          {!postItems.length && <p className="muted small">Tiada content dijadualkan untuk dipos pada hari ini.</p>}
+          {postItems.map((c) => {
+            const ownerName = staffById[c.ownerStaffId]?.name || c.ownerName;
+            return (
+              <button key={c.id} type="button" className="post-row" onClick={() => navigate(`/content/${c.id}`)}>
+                <span className="code-tag strong">{c.code}</span>
+                <span className="grow min0">
+                  <span className="day-title">{c.title}</span>
+                  <span className="day-meta">
+                    {c.publishTime && <span className="strong">{c.publishTime}</span>}
+                    {c.platform && <span className="tag">{c.platform}</span>}
+                    <span className="muted">{c.shootDate ? `Dishoot ${fmtDate(c.shootDate)}` : 'Tarikh shoot belum ditetapkan'}</span>
+                    {ownerName && <span className="muted">· {ownerName}</span>}
+                  </span>
+                </span>
+                <ContentStatusPill value={c.status} />
+              </button>
+            );
+          })}
+        </div>
+      )}
     </Modal>
   );
 }

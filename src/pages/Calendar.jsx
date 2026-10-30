@@ -26,6 +26,7 @@ import DayModal, { colorFor, breakdown } from '../components/DayModal';
 
 const WEEKDAYS = ['Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab', 'Ahd'];
 const MODE_KEY = 'dibu_cal_color';
+const DATE_KEY = 'dibu_cal_date';
 const readMode = () => { try { return localStorage.getItem(MODE_KEY) || 'status'; } catch { return 'status'; } };
 
 export default function CalendarPage() {
@@ -40,8 +41,10 @@ export default function CalendarPage() {
   const [view, setView] = useState('month');
   const [mode, setMode] = useState(readMode);
   // Kalendar boleh disusun ikut tarikh POS (lalai) atau tarikh SHOOT.
-  const [dk, setDk] = useState('publishDate');
+  // Lalai: ikut tarikh SHOOT (pilihan diingat dalam browser).
+  const [dk, setDk] = useState(() => { try { return localStorage.getItem(DATE_KEY) || 'shootDate'; } catch { return 'shootDate'; } });
   const isShoot = dk === 'shootDate';
+  useEffect(() => { try { localStorage.setItem(DATE_KEY, dk); } catch { /* abaikan */ } }, [dk]);
   const [anchor, setAnchor] = useState(today());
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [openDay, setOpenDay] = useState(null);
@@ -71,10 +74,17 @@ export default function CalendarPage() {
   const items = useMemo(() => applyFilters(live, filters), [live, filters]);
   const byDay = useMemo(() => {
     const m = {};
-    items.forEach((c) => { const d = c[dk]; if (d) (m[d] = m[d] || []).push(c); });
+    items.forEach((c) => { const d = isShoot ? c.shootDate || c.publishDate : c[dk]; if (d) (m[d] = m[d] || []).push(c); });
     Object.values(m).forEach((l) => l.sort((a, b) => Number(a.isSlot) - Number(b.isSlot) || (a.publishTime || '99').localeCompare(b.publishTime || '99')));
     return m;
-  }, [items, dk]);
+  }, [items, dk, isShoot]);
+  // Content yang perlu DIPOS setiap hari (untuk paparan dalam mod Shoot).
+  const postByDay = useMemo(() => {
+    const m = {};
+    items.forEach((c) => { if (c.publishDate && !c.isSlot) (m[c.publishDate] = m[c.publishDate] || []).push(c); });
+    Object.values(m).forEach((l) => l.sort((a, b) => (a.publishTime || '99').localeCompare(b.publishTime || '99') || (a.code || '').localeCompare(b.code || '')));
+    return m;
+  }, [items]);
   const ideas = useMemo(() => items.filter((c) => !c.publishDate).sort((a, b) => (b.code || '').localeCompare(a.code || '')), [items]);
 
   const a = parseDate(anchor);
@@ -122,7 +132,7 @@ export default function CalendarPage() {
     setDrag(null);
     if (!d) return;
     const c = content.find((x) => x.id === d.id);
-    if (!c || c[dk] === day) return;
+    if (!c || (isShoot ? (c.shootDate || c.publishDate) : c[dk]) === day) return;
     if (isShoot) {
       if (c.publishDate && day > c.publishDate) { run(async () => { throw Object.assign(new Error('Tarikh shoot mesti sebelum tarikh pos.'), { code: 'validation' }); }); return; }
       await run(() => updateById('content', c.id, { shootDate: day }, profile), `Tarikh shoot ditukar ke ${fmtDate(day)}`);
@@ -175,7 +185,7 @@ export default function CalendarPage() {
         type="button"
         className={`cal-cell cal-sum${out ? ' out' : ''}${dropDay === day ? ' drop' : ''}${list.length ? ' has' : ''}`}
         onClick={() => setOpenDay(day)}
-        aria-label={`${fmtDate(day, { weekday: 'long' })}: ${real.length} content${slots ? `, ${slots} slot` : ''}`}
+        aria-label={`${fmtDate(day, { weekday: 'long' })}: ${real.length} ${isShoot ? 'shoot' : 'content'}${slots ? `, ${slots} slot` : ''}${isShoot && postByDay[day]?.length ? `, ${postByDay[day].length} perlu dipos` : ''}`}
         {...dropProps(day)}
       >
         <span className={`cal-num${day === t0 ? ' today' : ''}`}>{parseDate(day).getDate()}</span>
@@ -185,6 +195,7 @@ export default function CalendarPage() {
             <span>{isShoot ? 'shoot' : 'content'}</span>
           </span>
         )}
+        {isShoot && (postByDay[day] || []).length > 0 && <span className="cal-postline">{postByDay[day].length} perlu dipos</span>}
         {real.length > 0 && (
           <span className="cal-bar" title={parts.map((p) => `${p.label}: ${p.n}`).join('\n')}>
             {parts.map((p) => <span key={p.key} style={{ flex: p.n, background: p.color }} />)}
@@ -248,7 +259,7 @@ export default function CalendarPage() {
         <h2 style={{ margin: '0 6px', fontSize: 17 }}>{title}</h2>
         <div className="grow" />
         <span className="small muted">Ikut tarikh</span>
-        <Segmented value={dk} onChange={setDk} options={[{ key: 'publishDate', label: 'Pos' }, { key: 'shootDate', label: 'Shoot' }]} />
+        <Segmented value={dk} onChange={setDk} options={[{ key: 'shootDate', label: 'Shoot' }, { key: 'publishDate', label: 'Pos' }]} />
         <span className="small muted">Warna ikut</span>
         <Segmented value={mode} onChange={setMode} options={[{ key: 'status', label: 'Status' }, { key: 'type', label: 'Jenis' }, { key: 'owner', label: 'Pemilik' }]} />
         <Segmented value={view} onChange={setView} options={[{ key: 'month', label: 'Bulan' }, { key: 'week', label: 'Minggu' }, { key: 'list', label: 'Senarai' }]} />
@@ -377,11 +388,12 @@ export default function CalendarPage() {
         items={openDay ? byDay[openDay] || [] : []}
         mode={mode}
         dateKey={dk}
+        postItems={openDay && isShoot ? postByDay[openDay] || [] : []}
         canCreate={canCreate}
         saving={saving}
         onClose={() => setOpenDay(null)}
         onQuickAdd={quickAdd}
-        onOpenBrief={(day, platform) => { setOpenDay(null); setDrawer({ preset: { date: day, platform } }); }}
+        onOpenBrief={(day, platform) => { setOpenDay(null); setDrawer({ preset: isShoot ? { shootDate: day, platform } : { date: day, platform } }); }}
         onOpenSlot={(c) => { setOpenDay(null); setDrawer({ content: c }); }}
       />
       <QuickPlanModal open={planOpen} onClose={() => setPlanOpen(false)} />

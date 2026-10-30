@@ -215,6 +215,7 @@ export default function ContentDetail() {
         </>}
       />
       <div className="chips meta-chips">
+        <span className="code-tag strong" title="ID content">ID {content.code}</span>
         {chip(<CalendarDays size={13} />, content.publishDate ? `Pos ${fmtDate(content.publishDate, { weekday: 'short' })}${content.publishTime ? `, ${content.publishTime}` : ''}` : 'Tiada tarikh pos', canEdit ? () => setEditOpen(true) : null)}
         {content.shootDate && chip(<Clapperboard size={13} />, `Shoot ${fmtDate(content.shootDate, { weekday: 'short' })}`, canEdit ? () => setEditOpen(true) : null)}
         {chip(<Hash size={13} />, content.platform || 'Platform?', canEdit ? () => setEditOpen(true) : null)}
