@@ -1,11 +1,12 @@
 // Satu tempat untuk semua listener Firestore utama (real-time).
 // Pengurus nampak semua rekod. Content Creator hanya dengar content & tugasan yang ditugaskan kepadanya.
 // Status setiap koleksi (loading / error) dipaparkan dalam Settings > System check.
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
-import { isCreatorOnly } from '../lib/permissions';
+import { isCreatorOnly, can } from '../lib/permissions';
+import { syncOwnerUids } from '../lib/db';
 import { log } from '../lib/log';
 import { staffColorMap } from '../lib/colors';
 
@@ -25,7 +26,7 @@ export function DataProvider({ children }) {
     if (!uidKey) return undefined;
     const queries = creatorOnly
       ? {
-          content: query(collection(db, 'content'), where('assigneeUids', 'array-contains', uidKey)),
+          content: query(collection(db, 'content'), where('ownerUid', '==', uidKey)),
           tasks: query(collection(db, 'tasks'), where('staffUid', '==', uidKey)),
           staff: collection(db, 'staff'),
         }
@@ -49,6 +50,23 @@ export function DataProvider({ children }) {
     ));
     return () => unsubs.forEach((u) => u());
   }, [uidKey, creatorOnly]);
+
+  // Pengurus membetulkan ownerUid secara automatik (rekod lama, pemilik ditukar, staf baru dipautkan),
+  // supaya Content Creator sentiasa nampak content milik dia SAHAJA.
+  const canFix = !creatorOnly && can(profile, 'content.edit');
+  const fixing = useRef(false);
+  useEffect(() => {
+    if (!canFix || loading.content || loading.staff || fixing.current) return undefined;
+    const t = setTimeout(async () => {
+      fixing.current = true;
+      try {
+        const map = Object.fromEntries(data.staff.map((s) => [s.id, s]));
+        await syncOwnerUids(data.content, map);
+      } catch (e) { log.warn('ownerUid sync gagal', e); }
+      fixing.current = false;
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [canFix, data.content, data.staff, loading.content, loading.staff]);
 
   const value = useMemo(() => {
     const byId = (list) => Object.fromEntries(list.map((x) => [x.id, x]));

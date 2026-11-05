@@ -4,6 +4,7 @@
 //     contohnya folder aset jenama, panduan logo, template Canva.
 // Fail besar disimpan di Google Drive; sistem simpan link sahaja.
 import { useEffect, useMemo, useState } from 'react';
+import { usePersistentState } from '../hooks/usePersistentState';
 import { Link, useSearchParams } from 'react-router-dom';
 import { collection, doc, deleteDoc } from 'firebase/firestore';
 import { ExternalLink, Plus, Trash2 } from 'lucide-react';
@@ -76,9 +77,9 @@ export default function Library() {
   const { profile } = useAuth();
   const { run } = useToast();
   const [confirm, confirmEl] = useConfirm();
-  const [view, setView] = useState('grid');
+  const [view, setView] = usePersistentState('lib_view', 'grid');
   const [addOpen, setAddOpen] = useState(false);
-  const [f, setF] = useState({ q: '', category: '', campaignId: '', platform: '', contentId: '', kind: '' });
+  const [f, setF] = usePersistentState('lib_filters', { q: '', category: '', campaignId: '', platform: '', contentId: '', kind: '' });
   const generalQ = useQuery(useMemo(() => collection(db, 'libraryLinks'), []), []);
   const canAdd = can(profile, 'library.add');
   const [params, setParams] = useSearchParams();

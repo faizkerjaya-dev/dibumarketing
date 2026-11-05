@@ -1,14 +1,19 @@
 // Skrin utama Content Creator: apa yang kena buat hari ini.
-// Senarai di kiri, butiran tugasan di kanan. Di telefon, kedua-duanya bertindan.
+//   Video saya : setiap video milik saya dengan butang Shoot · Edit · Pos (satu klik).
+//   Tugasan    : senarai tugasan (termasuk tugasan pada content orang lain), butiran di kanan.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ExternalLink, CheckCircle2, Lightbulb } from 'lucide-react';
+import { ExternalLink, CheckCircle2, Lightbulb, BarChart3 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
 import { updateOwnTask, updateById, addLink, addIdea } from '../lib/db';
-import { statusForStage } from '../lib/statuses';
+import { statusForStage, stageOf, isArchived } from '../lib/statuses';
+import { nextStep, lateSteps } from '../lib/progress';
+import { usePersistentState } from '../hooks/usePersistentState';
+import VideoRow from '../components/VideoRow';
+import { useProgressAction } from '../components/Progress';
 import { TASK_ROLES, findOpt, slug } from '../lib/constants';
 import { today, addDays, startOfWeek, fmtDate, relDue, parseDate } from '../lib/dates';
 import { PageHeader, Card, Button, Pill, Field, Input, Textarea, Loading, Empty, Stat, Segmented } from '../components/ui';
@@ -27,7 +32,9 @@ export default function MyTasks() {
   const config = useConfig();
   const { run } = useToast();
   const [selectedId, setSelectedId] = useState(null);
-  const [scope, setScope] = useState('open');
+  const [scope, setScope] = usePersistentState('my_scope', 'video');
+  const [range, setRange] = usePersistentState('my_range', 'week');
+  const action = useProgressAction();
   const [note, setNote] = useState('');
   const [link, setLink] = useState('');
   const [idea, setIdea] = useState('');
@@ -46,10 +53,37 @@ export default function MyTasks() {
       ['Tiada deadline', open.filter((t) => !t.deadline)],
     ];
     const done = mine.filter((t) => t.status === 'done' && (t.completedAt || '') >= addDays(t0, -14)).sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
-    return scope === 'open' ? g.filter(([, l]) => l.length) : [['Siap dalam 14 hari lepas', done]];
+    return scope === 'done' ? [['Siap dalam 14 hari lepas', done]] : g.filter(([, l]) => l.length);
   }, [mine, t0, weekEnd, scope]);
 
-  const allVisible = groups.flatMap(([, l]) => l);
+  // Video milik saya, dikumpul ikut langkah seterusnya.
+  const myVideos = useMemo(() => allContent.filter((c) => !c.isSlot && !c.archived && !isArchived(config, c.status)
+    && (c.ownerUid === profile.uid || (profile.staffId && c.ownerStaffId === profile.staffId))), [allContent, config, profile.uid, profile.staffId]);
+  const horizon = range === 'week' ? weekEnd : range === 'today' ? t0 : '9999-12-31';
+  const videoGroups = useMemo(() => {
+    const open = myVideos.filter((c) => nextStep(config, c));
+    const dueOf = (c) => {
+      const n = nextStep(config, c);
+      return n.key === 'shot' ? (c.shootDate || c.publishDate || '') : (c.publishDate || '');
+    };
+    const sorted = open.map((c) => ({ c, due: dueOf(c), n: nextStep(config, c).key })).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
+    const inRangeOrLate = (x) => !x.due || x.due <= horizon || lateSteps(config, x.c, t0).length;
+    const g = [
+      ['Lewat', sorted.filter((x) => lateSteps(config, x.c, t0).length)],
+      ['Perlu shoot', sorted.filter((x) => x.n === 'shot' && !lateSteps(config, x.c, t0).length && inRangeOrLate(x))],
+      ['Perlu edit', sorted.filter((x) => x.n === 'edited' && !lateSteps(config, x.c, t0).length && stageOf(config, x.c.status) !== 'review' && inRangeOrLate(x))],
+      ['Menunggu kelulusan video', sorted.filter((x) => stageOf(config, x.c.status) === 'review' && !lateSteps(config, x.c, t0).length)],
+      ['Perlu pos', sorted.filter((x) => x.n === 'posted' && stageOf(config, x.c.status) !== 'review' && !lateSteps(config, x.c, t0).length && inRangeOrLate(x))],
+    ];
+    return g.map(([k, l]) => [k, l.map((x) => x.c)]).filter(([, l]) => l.length);
+  }, [myVideos, config, horizon, t0]);
+  const hiddenLater = myVideos.filter((c) => nextStep(config, c)).length - videoGroups.reduce((n, [, l]) => n + l.length, 0);
+  const shootToday = myVideos.filter((c) => c.shootDate === t0 && nextStep(config, c)?.key === 'shot').length;
+  const postToday = myVideos.filter((c) => c.publishDate === t0 && nextStep(config, c)).length;
+  const lateVideos = myVideos.filter((c) => lateSteps(config, c, t0).length).length;
+  const needD7 = myVideos.filter((c) => stageOf(config, c.status) === 'published' && (c.publishedDate || c.publishDate) && (c.publishedDate || c.publishDate) <= addDays(t0, -7) && (c.publishedDate || c.publishDate) >= addDays(t0, -21)).length;
+
+  const allVisible = scope === 'video' ? [] : groups.flatMap(([, l]) => l);
   const selected = mine.find((t) => t.id === selectedId) || allVisible[0] || null;
   const content = selected?.contentId ? contentById[selected.contentId] : null;
 
@@ -79,14 +113,23 @@ export default function MyTasks() {
 
   return (
     <div className="page">
-      <PageHeader title="Hari ini" crumb={fmtDate(t0, { weekday: 'long', year: 'numeric' })} actions={<Segmented value={scope} onChange={setScope} options={[{ key: 'open', label: 'Belum siap' }, { key: 'done', label: 'Siap' }]} />} />
-      <div className="stats">
-        <Stat label="Perlu siap hari ini" value={dueToday} tone={dueToday ? 'amber' : undefined} />
-        <Stat label="Minggu ini" value={mine.filter((t) => t.status !== 'done' && t.deadline >= t0 && t.deadline <= weekEnd).length} />
-        <Stat label="Lewat" value={overdue} tone={overdue ? 'red' : undefined} />
-      </div>
+      <PageHeader title="Hari ini" crumb={fmtDate(t0, { weekday: 'long', year: 'numeric' })} actions={<Segmented value={scope} onChange={setScope} options={[{ key: 'video', label: `Video saya (${myVideos.filter((c) => nextStep(config, c)).length})` }, { key: 'open', label: 'Tugasan' }, { key: 'done', label: 'Siap' }]} />} />
+      {scope === 'video' ? (
+        <div className="stats">
+          <Stat label="Shoot hari ini" value={shootToday} tone={shootToday ? 'amber' : undefined} />
+          <Stat label="Pos hari ini" value={postToday} tone={postToday ? 'amber' : undefined} />
+          <Stat label="Lewat" value={lateVideos} tone={lateVideos ? 'red' : undefined} />
+          <Stat label="Perlu rekod prestasi (Hari ke-7)" value={needD7} hint={needD7 ? <Link to="/performance">Rekod sekarang →</Link> : 'Tiada'} />
+        </div>
+      ) : (
+        <div className="stats">
+          <Stat label="Perlu siap hari ini" value={dueToday} tone={dueToday ? 'amber' : undefined} />
+          <Stat label="Minggu ini" value={mine.filter((t) => t.status !== 'done' && t.deadline >= t0 && t.deadline <= weekEnd).length} />
+          <Stat label="Lewat" value={overdue} tone={overdue ? 'red' : undefined} />
+        </div>
+      )}
 
-      {myKpi && (
+      {scope !== 'video' && myKpi && (
         <Card title="KPI saya bulan ini" subtitle={`Content yang anda miliki dan tugasan berdeadline bulan ini. ${Math.round(kPace * 100)}% bulan sudah berlalu.`}>
           <div className="kpi-mini">
             {[['Content terbit', myKpi.published, staffTarget(targetsQ.data, profile.staffId, 'published'), 'count', ''], ['Siap tepat masa', myKpi.onTimePct, staffTarget(targetsQ.data, profile.staffId, 'onTimePct'), 'rate', '%']].map(([label, actual, target, kind, unit]) => {
@@ -104,7 +147,34 @@ export default function MyTasks() {
         </Card>
       )}
 
-      <div className="split">
+      {scope === 'video' && (
+        <div className="col gap">
+          <div className="toolbar">
+            <Segmented value={range} onChange={setRange} options={[{ key: 'today', label: 'Hari ini' }, { key: 'week', label: 'Minggu ini' }, { key: 'all', label: 'Semua' }]} />
+            <span className="small muted">Tekan <strong>Shoot</strong>, <strong>Edit</strong> atau <strong>Pos</strong> bila siap. Status dan tugasan dikemas kini sendiri.</span>
+          </div>
+          {!videoGroups.length && <Card><Empty title="Tiada video perlu diuruskan" text={hiddenLater > 0 ? `${hiddenLater} video lagi dijadualkan selepas ini. Pilih "Semua" untuk lihat.` : 'Video baharu akan muncul di sini bila diberikan kepada anda.'} /></Card>}
+          {videoGroups.map(([name, list]) => (
+            <Card key={name} pad={false} className="video-group">
+              <div className={`video-group-head${name === 'Lewat' ? ' late' : ''}`}><strong>{name}</strong><span className="small muted">{list.length} video</span></div>
+              {list.map((c) => <VideoRow key={c.id} content={c} action={action} />)}
+            </Card>
+          ))}
+          {videoGroups.length > 0 && hiddenLater > 0 && <p className="small muted">{hiddenLater} video lagi dijadualkan selepas tempoh ini.</p>}
+          {needD7 > 0 && (
+            <Card>
+              <div className="row gap-sm wrap">
+                <BarChart3 size={18} />
+                <span className="grow"><strong>{needD7} video sudah 7 hari dipos.</strong> <span className="muted">Rekod tontonan dan engagement sekali sahaja untuk laporan.</span></span>
+                <Link to="/performance" className="btn btn-primary btn-sm">Rekod prestasi</Link>
+              </div>
+            </Card>
+          )}
+          {action.el}
+        </div>
+      )}
+
+      {scope !== 'video' && <div className="split">
         <div className="main">
           {!allVisible.length && <Card><Empty title={scope === 'open' ? 'Tiada tugasan terbuka' : 'Tiada tugasan siap baru-baru ini'} text={scope === 'open' ? 'Tugasan baharu akan muncul di sini bila diberikan kepada anda.' : undefined} /></Card>}
           {groups.map(([name, list]) => (
@@ -189,7 +259,33 @@ export default function MyTasks() {
             </Card>
           </div>
         )}
-      </div>
+      </div>}
+
+      {scope === 'video' && myKpi && (
+        <Card title="KPI saya bulan ini" subtitle={`Content yang anda miliki dan tugasan berdeadline bulan ini. ${Math.round(kPace * 100)}% bulan sudah berlalu.`}>
+          <div className="kpi-mini">
+            {[['Content terbit', myKpi.published, staffTarget(targetsQ.data, profile.staffId, 'published'), 'count', ''], ['Siap tepat masa', myKpi.onTimePct, staffTarget(targetsQ.data, profile.staffId, 'onTimePct'), 'rate', '%']].map(([label, actual, target, kind, unit]) => {
+              const st = kpiStatus(actual, target, kind, kPace);
+              return (
+                <div key={label} className="col gap-xs">
+                  <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}><span className="small muted">{label}</span><Pill tone={st.tone}>{st.label}</Pill></div>
+                  <strong style={{ fontSize: 20 }}>{fmtKpi(actual, unit)}{target ? <span className="kpi-target"> / {fmtKpi(target, unit)}</span> : ''}</strong>
+                  <KpiBar ratio={st.ratio} pace={kind === 'count' ? kPace : null} tone={st.tone === 'gray' ? 'gray' : st.tone} />
+                </div>
+              );
+            })}
+            <div className="col gap-xs"><span className="small muted">Tugasan siap</span><strong style={{ fontSize: 20 }}>{myKpi.done}/{myKpi.assigned}</strong>{myKpi.overdue > 0 && <span className="small danger-text">{myKpi.overdue} lewat</span>}</div>
+          </div>
+        </Card>
+      )}
+      {scope === 'video' && (
+        <Card title="Hantar idea" subtitle="Idea anda masuk Bank idea. Ketua akan jadualkan tarikhnya.">
+          <div className="row gap-sm">
+            <Input style={{ flex: 1 }} value={idea} onChange={(e) => setIdea(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && idea.trim() && submitIdea()} placeholder="Contoh: mitos garam untuk bayi" />
+            <Button icon={Lightbulb} disabled={!idea.trim()} onClick={submitIdea}>Hantar</Button>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

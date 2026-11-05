@@ -1,5 +1,5 @@
 // Penapis content yang dikongsi oleh Kalendar dan Papan kerja. Semua penapis berfungsi serentak.
-import { useState } from 'react';
+import { usePersistentState } from '../hooks/usePersistentState';
 import { SlidersHorizontal } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useConfig } from '../context/ConfigContext';
@@ -29,7 +29,7 @@ export const activeFilterCount = (f) => Object.entries(f).filter(([k, v]) => v &
 export default function ContentFilters({ value, onChange, hide = [] }) {
   const { staff, campaigns } = useData();
   const config = useConfig();
-  const [more, setMore] = useState(false);
+  const [more, setMore] = usePersistentState('more_filters', false);
   const set = (k) => (e) => onChange({ ...value, [k]: e.target.value });
   const staffOpts = staff.map((s) => ({ value: s.id, label: s.name }));
   const extra = activeFilterCount({ ...value, platform: '', ownerStaffId: '', status: '' });
@@ -44,7 +44,7 @@ export default function ContentFilters({ value, onChange, hide = [] }) {
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => setMore((m) => !m)}>
           <SlidersHorizontal size={14} />Lagi penapis{extra > 0 ? ` (${extra})` : ''}
         </button>
-        {(activeFilterCount(value) > 0 || value.q) && <button type="button" className="link-btn" onClick={() => onChange(EMPTY_FILTERS)}>Kosongkan</button>}
+        {(activeFilterCount(value) > 0 || value.q) && <button type="button" className="link-btn" onClick={() => onChange(EMPTY_FILTERS)} title="Penapis diingat walaupun anda tukar halaman. Tekan untuk kosongkan.">Kosongkan penapis ({activeFilterCount(value) + (value.q ? 1 : 0)})</button>}
       </div>
       {more && (
         <div className="toolbar">

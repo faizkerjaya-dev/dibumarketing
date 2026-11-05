@@ -4,6 +4,8 @@
 // (contohnya Content Creator hanya boleh baca content yang dia terlibat, walaupun Admin beri akses halaman lain).
 // Butang tindakan (edit, luluskan, padam) pula dikawal oleh src/lib/permissions.js.
 
+import { isCreatorOnly } from './permissions';
+
 export const PAGES = [
   { key: 'dashboard', label: 'Dashboard', path: '/dashboard' },
   { key: 'mytasks', label: 'Hari ini / Tugasan saya', path: '/my-tasks' },
@@ -16,6 +18,7 @@ export const PAGES = [
   { key: 'deliverables', label: 'Deliverable', path: '/deliverables' },
   { key: 'library', label: 'Pustaka link', path: '/library' },
   { key: 'kpi', label: 'KPI', path: '/kpi' },
+  { key: 'performance', label: 'Prestasi content (Hari ke-7)', path: '/performance' },
   { key: 'report_content', label: 'Laporan › Content', path: '/analytics?tab=content', report: 'content' },
   { key: 'report_followers', label: 'Laporan › Pengikut & trend', path: '/analytics?tab=followers', report: 'followers' },
   { key: 'report_engagement', label: 'Laporan › Analisa content', path: '/analytics?tab=engagement', report: 'engagement' },
@@ -27,6 +30,9 @@ export const PAGES = [
 export const REPORT_PAGES = PAGES.filter((p) => p.report);
 
 const ALL = PAGES.map((p) => p.key);
+// Halaman yang ditambah selepas v3.4. Jika Admin sudah simpan Akses role sebelum halaman ini wujud,
+// akses lalai digunakan untuk halaman baharu ini sehingga Admin simpan semula.
+const ADDED_LATER = ['performance'];
 const REPORTS = REPORT_PAGES.map((p) => p.key);
 
 // Role yang boleh diubah. Admin sentiasa ada semua akses dan tidak disenaraikan di sini.
@@ -34,10 +40,10 @@ export const EDITABLE_ROLES = ['marketing_manager', 'content_manager', 'creator_
 
 export const DEFAULT_ROLE_ACCESS = {
   marketing_manager: ALL,
-  content_manager: ['dashboard', 'mytasks', 'calendar', 'pipeline', 'team', 'campaigns', 'library', 'kpi', 'report_content', 'report_followers', 'report_engagement'],
-  creator_manager: ['dashboard', 'mytasks', 'calendar', 'creators', 'campaigns', 'deliverables', 'library', 'kpi', 'report_campaigns', 'report_creators'],
-  content_creator: ['mytasks', 'calendar', 'library'],
-  viewer: ['dashboard', 'calendar', 'campaigns', 'kpi', ...REPORTS],
+  content_manager: ['dashboard', 'mytasks', 'calendar', 'pipeline', 'team', 'campaigns', 'library', 'kpi', 'performance', 'report_content', 'report_followers', 'report_engagement'],
+  creator_manager: ['dashboard', 'mytasks', 'calendar', 'creators', 'campaigns', 'deliverables', 'library', 'kpi', 'performance', 'report_campaigns', 'report_creators'],
+  content_creator: ['mytasks', 'calendar', 'library', 'performance'],
+  viewer: ['dashboard', 'calendar', 'campaigns', 'kpi', 'performance', ...REPORTS],
 };
 
 // Halaman yang tidak boleh dibuka langsung oleh role tertentu kerana firestore.rules menyekat datanya.
@@ -48,7 +54,12 @@ export const BLOCKED = {
 
 export function roleAccess(config, role) {
   const saved = config?.roleAccess?.[role];
-  const list = Array.isArray(saved) ? saved : DEFAULT_ROLE_ACCESS[role] || [];
+  let list = Array.isArray(saved) ? saved : DEFAULT_ROLE_ACCESS[role] || [];
+  if (Array.isArray(saved)) {
+    const known = config?.roleAccessKnown || [];
+    const fresh = ADDED_LATER.filter((k) => !known.includes(k) && (DEFAULT_ROLE_ACCESS[role] || []).includes(k));
+    if (fresh.length) list = [...list, ...fresh];
+  }
   const blocked = BLOCKED[role] || [];
   return list.filter((k) => !blocked.includes(k));
 }
@@ -57,6 +68,8 @@ export function roleAccess(config, role) {
 export function allowedPages(profile, config) {
   const roles = profile?.roles || [];
   if (roles.includes('admin')) return new Set(ALL);
+  // Content Creator yang juga ada role "viewer" tetap guna akses Content Creator sahaja.
+  if (isCreatorOnly(profile) && roles.includes('content_creator')) return new Set(roleAccess(config, 'content_creator'));
   const set = new Set();
   roles.forEach((r) => roleAccess(config, r).forEach((k) => set.add(k)));
   return set;

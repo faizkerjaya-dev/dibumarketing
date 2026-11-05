@@ -136,7 +136,7 @@ export default function EngagementReport({ metrics, latest, contentId, onPick })
         </div>
       </>}
       {picked.review?.comment && <Card title="Nota semakan"><Pill tone="gray">{picked.review.byName}</Pill> <span className="pre-line">{picked.review.comment}</span></Card>}
-      <MetricsModal open={metricsOpen} onClose={() => setMetricsOpen(false)} target={{ type: 'content', id: picked.id, campaignId: picked.campaignId }} />
+      <MetricsModal open={metricsOpen} onClose={() => setMetricsOpen(false)} target={{ type: 'content', id: picked.id, campaignId: picked.campaignId, ownerUid: picked.ownerUid }} />
     </div>
   );
 }

@@ -18,7 +18,10 @@ service cloud.firestore {
     function managers() { return hasAny(['admin', 'marketing_manager']); }
     function contentEditors() { return hasAny(['admin', 'marketing_manager', 'content_manager']); }
     function creatorEditors() { return hasAny(['admin', 'marketing_manager', 'creator_manager']); }
-    function staffReader() { return hasAny(['admin', 'marketing_manager', 'content_manager', 'creator_manager', 'viewer']); }
+    function isManager() { return hasAny(['admin', 'marketing_manager', 'content_manager', 'creator_manager']); }
+    // Viewer boleh baca semua, KECUALI jika dia juga Content Creator (creator hanya nampak content sendiri).
+    function staffReader() { return isManager() || (hasAny(['viewer']) && !hasAny(['content_creator'])); }
+    function ownsContent() { return isActive() && resource.data.get('ownerUid', '') == request.auth.uid; }
     function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
     function changes(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasAny(keys); }
 
@@ -45,10 +48,10 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Content Creator hanya boleh baca content yang dia terlibat (assigneeUids),
-    // dan hanya boleh ubah checklist + links.
+    // Content Creator hanya boleh baca content MILIK SENDIRI (ownerUid), bukan content creator lain.
+    // Dia boleh tanda kemajuan (Shoot / Edit / Pos), checklist, link dan link post sahaja.
     match /content/{id} {
-      allow read: if staffReader() || (isActive() && request.auth.uid in resource.data.assigneeUids);
+      allow read: if staffReader() || ownsContent();
       // Staf lain boleh hantar idea sahaja: content tanpa tarikh terbit dan bukan slot.
       // Idea tidak boleh terbit tanpa tarikh, jadi ia selamat.
       allow create: if contentEditors()
@@ -56,10 +59,11 @@ service cloud.firestore {
             && request.resource.data.get('publishDate', '') == ''
             && request.resource.data.get('isSlot', false) == false
             && request.resource.data.get('publishUrl', '') == ''
+            && request.resource.data.get('ownerUid', '') == request.auth.uid
             && request.resource.data.get('assigneeUids', []).hasOnly([request.auth.uid]));
       allow update: if managers()
         || (hasAny(['content_manager']) && !changes(['review']))
-        || (isActive() && request.auth.uid in resource.data.assigneeUids && changedOnly(['checklist', 'links', 'updatedAt', 'updatedBy']));
+        || (ownsContent() && changedOnly(['checklist', 'links', 'progress', 'status', 'publishUrl', 'publishedDate', 'updatedAt', 'updatedBy']));
       allow delete: if isAdmin();
     }
 
@@ -94,10 +98,16 @@ service cloud.firestore {
       allow write: if creatorEditors();
     }
 
+    // Prestasi content. Rekod Hari ke-7 guna ID tetap '{contentId}__d7' supaya boleh dikemas kini.
+    // Content Creator boleh rekod & baca prestasi content MILIK SENDIRI sahaja (ownerUid).
     match /metrics/{id} {
-      allow read: if staffReader();
-      allow create: if hasAny(['admin', 'marketing_manager', 'content_manager', 'creator_manager']);
-      allow update, delete: if isAdmin();
+      allow read: if staffReader() || (isActive() && resource.data.get('ownerUid', '') == request.auth.uid);
+      allow create: if isManager()
+        || (isActive() && request.resource.data.get('ownerUid', '') == request.auth.uid);
+      allow update: if isManager()
+        || (isActive() && resource.data.get('ownerUid', '') == request.auth.uid
+            && request.resource.data.get('ownerUid', '') == request.auth.uid);
+      allow delete: if isAdmin();
     }
 
     // Komen tidak boleh diedit. Content Creator hanya nampak & tulis komen yang dia termasuk dalam visibleUids.

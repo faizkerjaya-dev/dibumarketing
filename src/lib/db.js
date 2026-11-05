@@ -9,7 +9,9 @@ import { log } from './log';
 import { AppError } from './errors';
 import { nowIso, today, addDays, parseDate, fmtDate } from './dates';
 import { uid, TASK_STATUSES, TASK_ROLES, REVIEW_OUTCOMES, findOpt } from './constants';
-import { statusForStage } from './statuses';
+import { statusForStage, stageOf } from './statuses';
+import { STEPS, videoApprovalOn } from './progress';
+import { can } from './permissions';
 
 const taskStatusLabel = (k) => findOpt(TASK_STATUSES, k).label;
 
@@ -110,7 +112,8 @@ function blankContent(extra = {}) {
     objective: '', priority: 'medium', ownerStaffId: '', ownerName: '', status: '',
     publishAccount: '', publishDate: '', publishTime: '', publishUrl: '', publishedDate: '',
     brief: {}, checklist: {}, links: [], review: null, archived: false, isSlot: false,
-    assigneeStaffIds: [], assigneeUids: [],
+    assigneeStaffIds: [], assigneeUids: [], ownerUid: '',
+    progress: {},
     ...extra,
   };
 }
@@ -128,7 +131,7 @@ export async function quickAddContent(data, { profile, staffById }) {
     ownerStaffId: data.ownerStaffId || '',
     ownerName: owner?.name || '',
     assigneeStaffIds: data.ownerStaffId ? [data.ownerStaffId] : [],
-    assigneeUids: owner?.userUid ? [owner.userUid] : [],
+    assigneeUids: owner?.userUid ? [owner.userUid] : [], ownerUid: owner?.userUid || '',
   }), profile);
   await logActivity(profile, { type: 'content_created', message: `${by(profile)} tambah “${title}”`, refType: 'content', refId: id });
   return id;
@@ -145,6 +148,7 @@ export async function fillSlot(content, patch, { profile, staffById }) {
     isSlot: false,
     ownerStaffId: patch.ownerStaffId || content.ownerStaffId || '',
     ownerName: owner?.name || content.ownerName || '',
+    ownerUid: owner?.userUid || '',
   }, profile);
 }
 
@@ -189,7 +193,7 @@ export async function createSlots(plan, { profile, staffById, config }) {
         ownerStaffId: ownerStaffId || '',
         ownerName: owner?.name || '',
         assigneeStaffIds: ownerStaffId ? [ownerStaffId] : [],
-        assigneeUids: owner?.userUid ? [owner.userUid] : [],
+        assigneeUids: owner?.userUid ? [owner.userUid] : [], ownerUid: owner?.userUid || '',
       }),
       createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: by(profile), updatedBy: by(profile),
     });
@@ -216,7 +220,7 @@ export async function addIdea({ text, platform, statusKey }, { profile, staffByI
     ownerStaffId: me?.id || '',
     ownerName: me?.name || '',
     assigneeStaffIds: me ? [me.id] : [],
-    assigneeUids: profile?.uid ? [profile.uid] : [],
+    assigneeUids: profile?.uid ? [profile.uid] : [], ownerUid: profile?.uid || '',
   }), profile);
 }
 
@@ -237,7 +241,8 @@ export async function syncAssignees(contentId, staffById) {
   const staffIds = [...ids];
   const uids = [...new Set(staffIds.map((id) => staffById[id]?.userUid).filter(Boolean))];
   log.debug('syncAssignees', contentId, staffIds, uids);
-  await updateDoc(doc(db, 'content', contentId), { assigneeStaffIds: staffIds, assigneeUids: uids });
+  const ownerUid = staffById[content.data().ownerStaffId]?.userUid || '';
+  await updateDoc(doc(db, 'content', contentId), { assigneeStaffIds: staffIds, assigneeUids: uids, ownerUid });
 }
 
 function taskPayload(t, content, staff) {
@@ -270,7 +275,7 @@ export async function createContent(data, tasks, { profile, staffById }) {
     code,
     ownerName: owner?.name || '',
     assigneeStaffIds: [data.ownerStaffId],
-    assigneeUids: owner?.userUid ? [owner.userUid] : [],
+    assigneeUids: owner?.userUid ? [owner.userUid] : [], ownerUid: owner?.userUid || '',
     checklist: {},
     links: [],
     review: null,
@@ -371,7 +376,7 @@ export async function saveReview(content, { outcome, comment, adjustStaffId, adj
   const fresh = await getDoc(doc(db, 'content', content.id));
   await addComment({
     targetType: 'content', targetId: content.id, thread: 'review', kind: 'review', outcome,
-    text: comment || `Ditanda ${findOpt(REVIEW_OUTCOMES, outcome).label}`, visibleUids: fresh.data()?.assigneeUids || [],
+    text: comment || `Ditanda ${findOpt(REVIEW_OUTCOMES, outcome).label}`, visibleUids: viewerUids(fresh.data() || {}),
   }, profile);
   await notifyStaff(fresh.data()?.assigneeStaffIds || [], staffById, { title: `Semakan: “${content.title}”`, body: findOpt(REVIEW_OUTCOMES, outcome).label, link: `/content/${content.id}?tab=review` }, profile?.uid);
   await logActivity(profile, { type: 'content_reviewed', message: `${by(profile)} semak “${content.title}”: ${findOpt(REVIEW_OUTCOMES, outcome).label}`, refType: 'content', refId: content.id });
@@ -394,6 +399,7 @@ export async function saveMetrics(target, values, profile) {
   return createDoc('metrics', {
     ...clean,
     targetType: target.type, targetId: target.id, campaignId: target.campaignId || null, creatorId: target.creatorId || null,
+    ownerUid: target.ownerUid || '',
     date: values.date || today(), source: 'manual', enteredByName: by(profile), createdAtIso: nowIso(),
   }, profile);
 }
@@ -553,7 +559,7 @@ export async function bulkApprove(list, { config, profile, staffById, missingFor
     batch.update(doc(db, 'content', c.id), { status: target, approval, updatedAt: serverTimestamp(), updatedBy: by(profile) });
     batch.set(doc(collection(db, 'comments')), {
       targetType: 'content', targetId: c.id, thread: 'general', kind: 'comment', outcome: null,
-      text: `✓ Diluluskan oleh ${by(profile)}`, authorUid: profile.uid, authorName: by(profile), visibleUids: c.assigneeUids || [],
+      text: `✓ Diluluskan oleh ${by(profile)}`, authorUid: profile.uid, authorName: by(profile), visibleUids: viewerUids(c),
       createdAtIso: at, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: by(profile), updatedBy: by(profile),
     });
   });
@@ -576,10 +582,10 @@ export async function bulkReturn(list, note, { config, profile, staffById }) {
   const at = nowIso();
   const approval = { outcome: 'returned', note: text, byName: by(profile), byUid: profile.uid, at };
   await commitInChunks(list, (batch, c) => {
-    batch.update(doc(db, 'content', c.id), { status: target, approval, updatedAt: serverTimestamp(), updatedBy: by(profile) });
+    batch.update(doc(db, 'content', c.id), { status: target, approval, 'progress.edited': null, 'progress.posted': null, updatedAt: serverTimestamp(), updatedBy: by(profile) });
     batch.set(doc(collection(db, 'comments')), {
       targetType: 'content', targetId: c.id, thread: 'general', kind: 'comment', outcome: null,
-      text: `↩ Perlu pembetulan: ${text}`, authorUid: profile.uid, authorName: by(profile), visibleUids: c.assigneeUids || [],
+      text: `↩ Perlu pembetulan: ${text}`, authorUid: profile.uid, authorName: by(profile), visibleUids: viewerUids(c),
       createdAtIso: at, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: by(profile), updatedBy: by(profile),
     });
   });
@@ -612,7 +618,7 @@ export async function importPlanRows(rows, { profile, staffById, createTasks, ta
         publishDate: r.publishDate || '', publishTime: r.publishTime || '', shootDate: r.shootDate || '',
         status: r.status, priority: r.priority || 'medium', brief: r.brief || {},
         ownerStaffId: owner ? owner.id : '', ownerName: owner?.name || '',
-        assigneeStaffIds: owner ? [owner.id] : [], assigneeUids: owner?.userUid ? [owner.userUid] : [],
+        assigneeStaffIds: owner ? [owner.id] : [], assigneeUids: owner?.userUid ? [owner.userUid] : [], ownerUid: owner?.userUid || '',
         importSource: source, importedAt: at,
       }),
       createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: by(profile), updatedBy: by(profile),
@@ -652,4 +658,164 @@ export async function deleteImportBatch(list, tasks, profile) {
   const source = list[0]?.importSource || '';
   await logActivity(profile, { type: 'import_deleted', message: `${by(profile)} padam import${source ? ` “${source}”` : ''}: ${list.length} content dan ${relatedTasks.length} tugasan`, refType: 'calendar', refId: null });
   return { content: list.length, tasks: relatedTasks.length };
+}
+
+/* ---------------- Pemilik content (ownerUid) ---------------- */
+
+// Siapa yang boleh nampak komen sesuatu content: pemilik + staf yang ditugaskan.
+export function viewerUids(c) {
+  return [...new Set([...(c?.assigneeUids || []), c?.ownerUid].filter(Boolean))];
+}
+
+// Content Creator hanya boleh baca content yang ownerUid = akaun dia. Fungsi ini membetulkan
+// rekod lama / rekod yang pemiliknya ditukar, supaya ownerUid sentiasa sepadan dengan pemilik.
+// Dipanggil secara automatik oleh pengurus (DataContext). Hanya medan ownerUid ditulis.
+export async function syncOwnerUids(list, staffById) {
+  const fix = list
+    .map((c) => ({ c, want: staffById[c.ownerStaffId]?.userUid || '' }))
+    .filter(({ c, want }) => (c.ownerUid || '') !== want);
+  if (!fix.length) return 0;
+  await commitInChunks(fix, (batch, { c, want }) => batch.update(doc(db, 'content', c.id), { ownerUid: want }));
+  log.info('ownerUid synced', fix.length);
+  return fix.length;
+}
+
+/* ---------------- Kemajuan: Shoot · Edit · Pos ---------------- */
+
+// Tanda / buang tanda satu langkah. Status content dan tugasan berkaitan dikemas kini serentak.
+//   Shoot ✓  → status ke peringkat Produksi (jika masih Idea)
+//   Edit ✓   → status ke Semakan (jika kelulusan video dihidupkan) atau terus Sedia terbit
+//   Pos ✓    → perlu link post; status ke Terbit, tarikh terbit = hari ini (boleh ubah)
+export async function markProgress(content, stepKey, on, ctx) {
+  const { config, profile, tasks = [], publishUrl, publishedDate } = ctx;
+  const step = STEPS.find((s) => s.key === stepKey);
+  if (!step) throw new AppError('Langkah tidak dikenali.');
+  const at = nowIso();
+  const stamp = { at, by: by(profile), byUid: profile?.uid || '' };
+  const st = stageOf(config, content.status);
+  const prog = { ...(content.progress || {}) };
+  const patch = {};
+
+  if (on) {
+    prog[stepKey] = stamp;
+    if (stepKey !== 'shot' && !prog.shot) prog.shot = stamp;
+    if (stepKey === 'posted' && !prog.edited) prog.edited = stamp;
+    if (stepKey === 'shot' && st === 'idea') patch.status = statusForStage(config, 'production');
+    if (stepKey === 'edited' && ['idea', 'production'].includes(st)) {
+      patch.status = statusForStage(config, videoApprovalOn(config) ? 'review' : 'ready');
+    }
+    if (stepKey === 'posted') {
+      if (videoApprovalOn(config) && ['idea', 'production', 'review'].includes(st) && !can(profile, 'content.approve')) {
+        throw new AppError('Video ini belum diluluskan. Tunggu kelulusan sebelum pos.');
+      }
+      const url = String(publishUrl ?? content.publishUrl ?? '').trim();
+      if (!/^https?:\/\//i.test(url)) throw new AppError('Tampal link post (bermula dengan https://) sebelum tanda Sudah dipos.');
+      patch.publishUrl = url;
+      patch.publishedDate = publishedDate || content.publishedDate || today();
+      patch.status = statusForStage(config, 'published');
+    }
+  } else {
+    prog[stepKey] = null;
+    if (stepKey === 'shot') { prog.edited = null; prog.posted = null; }
+    if (stepKey === 'edited') prog.posted = null;
+    if (stepKey === 'posted' && st === 'published') patch.status = statusForStage(config, 'ready');
+    if (stepKey !== 'posted' && ['review', 'ready', 'published'].includes(st)) patch.status = statusForStage(config, 'production');
+  }
+  patch.progress = prog;
+
+  // Tugasan berkaitan (contoh tugasan Shooting) ditanda siap sekali gus.
+  const manager = can(profile, 'content.edit');
+  const related = on ? tasks.filter((t) => t.contentId === content.id && t.status !== 'done'
+    && STEPS.slice(0, STEPS.indexOf(step) + 1).some((x) => x.taskRoles.includes(t.role))
+    && (manager || t.staffUid === profile?.uid)) : [];
+
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'content', content.id), { ...patch, updatedAt: serverTimestamp(), updatedBy: by(profile) });
+  related.forEach((t) => batch.update(doc(db, 'tasks', t.id), {
+    status: 'done', completedAt: today(),
+    history: [...(t.history || []), { at, by: by(profile), text: `Siap (ditanda ${step.doneLabel})` }],
+    updatedAt: serverTimestamp(), updatedBy: by(profile),
+  }));
+  log.info('progress', content.id, stepKey, on, patch, 'tasks', related.length);
+  await batch.commit();
+  await logActivity(profile, { type: `content_${stepKey}`, message: `${by(profile)} ${on ? 'tanda' : 'buang tanda'} ${step.doneLabel}: “${content.title}”`, refType: 'content', refId: content.id });
+  return { tasks: related.length, status: patch.status || null };
+}
+
+/* ---------------- Kelulusan idea (pelan) lebih awal ---------------- */
+
+// Luluskan idea/pelan untuk minggu-minggu akan datang. Content bergerak ke peringkat Produksi
+// (sedia untuk shoot). Satu notifikasi bagi setiap staf.
+export async function approvePlans(list, { config, profile, staffById }) {
+  if (!list.length) throw new AppError('Pilih sekurang-kurangnya satu content.');
+  const target = statusForStage(config, 'production');
+  const at = nowIso();
+  const planApproval = { byName: by(profile), byUid: profile.uid, at };
+  await commitInChunks(list, (batch, c) => {
+    const st = stageOf(config, c.status);
+    batch.update(doc(db, 'content', c.id), {
+      planApproval, planReturn: null, ...(st === 'idea' && target ? { status: target } : {}),
+      updatedAt: serverTimestamp(), updatedBy: by(profile),
+    });
+  });
+  await notifyGrouped(list, staffById, profile.uid, (items) => ({
+    title: items.length === 1 ? `Idea “${items[0].title}” diluluskan` : `${items.length} idea anda diluluskan`,
+    body: 'Boleh mula shoot ikut tarikh dalam kalendar.',
+    link: items.length === 1 ? `/content/${items[0].id}` : '/my-tasks',
+  }));
+  await logActivity(profile, { type: 'plan_approved', message: `${by(profile)} luluskan ${list.length} idea/pelan content`, refType: 'content', refId: list.length === 1 ? list[0].id : null });
+  return list.length;
+}
+
+export async function returnPlans(list, note, { profile, staffById }) {
+  const text = (note || '').trim();
+  if (!text) throw new AppError('Tulis apa yang perlu diubah.');
+  const at = nowIso();
+  const planReturn = { note: text, byName: by(profile), byUid: profile.uid, at };
+  await commitInChunks(list, (batch, c) => {
+    batch.update(doc(db, 'content', c.id), { planApproval: null, planReturn, updatedAt: serverTimestamp(), updatedBy: by(profile) });
+    batch.set(doc(collection(db, 'comments')), {
+      targetType: 'content', targetId: c.id, thread: 'general', kind: 'comment', outcome: null,
+      text: `↩ Idea perlu diubah: ${text}`, authorUid: profile.uid, authorName: by(profile), visibleUids: viewerUids(c),
+      createdAtIso: at, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: by(profile), updatedBy: by(profile),
+    });
+  });
+  await notifyGrouped(list, staffById, profile.uid, (items) => ({
+    title: items.length === 1 ? `Idea “${items[0].title}” perlu diubah` : `${items.length} idea anda perlu diubah`,
+    body: text.slice(0, 140),
+    link: items.length === 1 ? `/content/${items[0].id}` : '/my-tasks',
+  }));
+  return list.length;
+}
+
+/* ---------------- Prestasi Hari ke-7 ---------------- */
+
+// Satu rekod tetap bagi setiap content: metrics/{contentId}__d7. Isi sekali (7 hari selepas pos),
+// boleh dikemas kini. Rekod prestasi lama (manual) kekal dan masih dipaparkan.
+export const d7Id = (contentId) => `${contentId}__d7`;
+
+export async function saveDay7Metrics(rows, { profile, source = 'manual' }) {
+  const clean = rows.map(({ content, values }) => {
+    const v = {};
+    Object.entries(values || {}).forEach(([k, x]) => {
+      if (k === 'date' || x === '' || x == null) return;
+      const n = Number(String(x).replace(/[, ]/g, ''));
+      if (Number.isFinite(n)) v[k] = n;
+    });
+    return { content, values: v, date: values?.date };
+  }).filter((r) => Object.keys(r.values).length);
+  if (!clean.length) throw new AppError('Tiada angka untuk disimpan.');
+  const at = nowIso();
+  await commitInChunks(clean, (batch, { content: c, values, date }) => {
+    const base = c.publishedDate || c.publishDate || today();
+    batch.set(doc(db, 'metrics', d7Id(c.id)), {
+      ...values,
+      targetType: 'content', targetId: c.id, campaignId: c.campaignId || null, creatorId: null,
+      ownerUid: c.ownerUid || '', ownerStaffId: c.ownerStaffId || '', platform: c.platform || '',
+      checkpoint: 'd7', date: date || addDays(base, 7), source, enteredByName: by(profile), createdAtIso: at,
+      updatedAt: serverTimestamp(), updatedBy: by(profile),
+    }, { merge: true });
+  });
+  await logActivity(profile, { type: 'metrics_d7', message: `${by(profile)} rekod prestasi Hari ke-7 bagi ${clean.length} content`, refType: 'content', refId: clean.length === 1 ? clean[0].content.id : null });
+  return clean.length;
 }

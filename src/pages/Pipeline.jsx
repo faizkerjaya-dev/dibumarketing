@@ -17,6 +17,8 @@ import { PriorityPill, ReviewPill } from '../components/pills';
 import ContentFilters, { EMPTY_FILTERS, applyFilters } from '../components/ContentFilters';
 import { useStatusChange } from '../components/StatusChangeModal';
 import BriefDrawer from '../components/BriefDrawer';
+import { ProgressDots } from '../components/Progress';
+import { usePersistentState } from '../hooks/usePersistentState';
 
 const PRIO_RANK = { high: 0, medium: 1, low: 2 };
 
@@ -26,18 +28,19 @@ export default function Pipeline() {
   const config = useConfig();
   const [params] = useSearchParams();
   const [moveTo, moveEl] = useStatusChange();
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [sort, setSort] = useState('deadline');
+  const [filters, setFilters] = usePersistentState('pipe_filters', EMPTY_FILTERS);
+  const [sort, setSort] = usePersistentState('pipe_sort', 'deadline');
   const [showArchived, setShowArchived] = useState(false);
-  const [showSlots, setShowSlots] = useState(false);
+  const [showSlots, setShowSlots] = usePersistentState('pipe_slots', false);
   const [drag, setDrag] = useState(null);
   const [over, setOver] = useState(null);
   const [drawer, setDrawer] = useState(null);
   const canEdit = can(profile, 'content.edit');
   const stageFilter = params.get('stage');
   const t0 = today();
-  const [scope, setScope] = useState(stageFilter ? 'all' : 'focus');
-  const [withLate, setWithLate] = useState(false);
+  const [savedScope, setScope] = usePersistentState('pipe_scope', 'focus');
+  const scope = stageFilter ? 'all' : savedScope;
+  const [withLate, setWithLate] = usePersistentState('pipe_late', false);
 
   const overloaded = useMemo(() => new Set(staff.filter((s) => staffWorkload(s, tasks).band === 'over').map((s) => s.id)), [staff, tasks]);
   const nextTask = useMemo(() => {
@@ -167,7 +170,7 @@ export default function Pipeline() {
                     >
                       <div className="row" style={{ justifyContent: 'space-between' }}><span className="small muted strong">{c.code}</span>{c.priority && <PriorityPill value={c.priority} />}</div>
                       <div className="strong" style={{ lineHeight: 1.35 }}>{c.title || <span className="muted">{c.slotLabel || 'Slot kosong'}</span>}</div>
-                      <div className="row gap-xs wrap">{c.platform && <span className="tag">{c.platform}</span>}{c.campaignName && <span className="tag">{c.campaignName}</span>}</div>
+                      <div className="row gap-xs wrap">{c.platform && <span className="tag">{c.platform}</span>}{c.campaignName && <span className="tag">{c.campaignName}</span>}{!c.isSlot && <span style={{ marginLeft: 'auto' }}><ProgressDots content={c} showLabel /></span>}</div>
                       {published && <div><ReviewPill review={c.review} showNone /></div>}
                       <div className="kcard-foot">
                         <span className={`row gap-xs small strong${late ? ' danger-text' : ' muted'}`}><Clock size={13} />{late ? 'Lewat · ' : ''}{dueLabel}</span>

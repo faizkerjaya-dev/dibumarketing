@@ -1,5 +1,6 @@
 // Semua deliverable creator merentas kempen. Klik baris untuk edit, revisi dan rekod prestasi.
 import { useEffect, useMemo, useState } from 'react';
+import { usePersistentState } from '../hooks/usePersistentState';
 import { useSearchParams } from 'react-router-dom';
 import { Plus, UserPlus } from 'lucide-react';
 import { useData } from '../context/DataContext';
@@ -16,7 +17,7 @@ export default function Deliverables() {
   const { deliverables, campaigns, creators, ready } = useData();
   const { profile } = useAuth();
   const [params, setParams] = useSearchParams();
-  const [f, setF] = useState({ q: '', campaignId: '', creatorId: '', status: 'open', due: '' });
+  const [f, setF] = usePersistentState('deliv_filters', { q: '', campaignId: '', creatorId: '', status: 'open', due: '' });
   const [delModal, setDelModal] = useState(null);
   const [assignOpen, setAssignOpen] = useState(false);
   const canEdit = can(profile, 'campaign.creators');

@@ -13,6 +13,7 @@ import { fmtDate } from '../lib/dates';
 import { Modal, Button, Avatar, Select } from './ui';
 import { readLast } from './BriefDrawer';
 import { ContentStatusPill } from './pills';
+import { ProgressDots } from './Progress';
 
 export function colorFor(mode, c, { config, staffColor }) {
   if (c.isSlot) return OTHER;
@@ -132,6 +133,7 @@ export default function DayModal({ day, items, postItems = [], mode, dateKey = '
               <span className="day-owner">
                 {ownerName ? <><span className="owner-ring" style={{ '--ring': staffColor[c.ownerStaffId] || OTHER }}><Avatar name={ownerName} size={26} /></span><span className="small">{ownerName}</span></> : <span className="small muted">Tiada pemilik</span>}
               </span>
+              {!c.isSlot && <ProgressDots content={c} showLabel />}
               {c.isSlot ? <span className="tag">Isi slot</span> : <ContentStatusPill value={c.status} />}
             </button>
           );
@@ -159,6 +161,7 @@ export default function DayModal({ day, items, postItems = [], mode, dateKey = '
                     {ownerName && <span className="muted">· {ownerName}</span>}
                   </span>
                 </span>
+                <ProgressDots content={c} showLabel />
                 <ContentStatusPill value={c.status} />
               </button>
             );

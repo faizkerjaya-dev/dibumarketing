@@ -34,7 +34,13 @@ export function can(profile, action) {
   return hasRole(profile, ...allowed);
 }
 
-// Content Creator sahaja (tiada role lain) hanya nampak tugasan sendiri.
+export const MANAGER_ROLES = ['admin', 'marketing_manager', 'content_manager', 'creator_manager'];
+
+// Content Creator (tanpa role pengurus) hanya nampak content MILIK SENDIRI.
+// Walaupun dia juga diberi role "viewer", dia tetap dihadkan kepada content sendiri,
+// supaya creator tidak boleh melihat content creator lain.
 export function isCreatorOnly(profile) {
-  return !!profile && !can(profile, 'view.all');
+  if (!profile) return false;
+  if (hasRole(profile, ...MANAGER_ROLES)) return false;
+  return hasRole(profile, 'content_creator') || !can(profile, 'view.all');
 }

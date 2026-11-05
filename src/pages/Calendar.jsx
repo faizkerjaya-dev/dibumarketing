@@ -23,6 +23,9 @@ import ContentFilters, { EMPTY_FILTERS, applyFilters } from '../components/Conte
 import BriefDrawer, { readLast } from '../components/BriefDrawer';
 import { QuickPlanModal, BulkFillModal } from '../components/SlotPlanModal';
 import DayModal, { colorFor, breakdown } from '../components/DayModal';
+import { ProgressDots } from '../components/Progress';
+import { progressOf } from '../lib/progress';
+import { usePersistentState } from '../hooks/usePersistentState';
 
 const WEEKDAYS = ['Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab', 'Ahd'];
 const MODE_KEY = 'dibu_cal_color';
@@ -38,7 +41,7 @@ export default function CalendarPage() {
   const [params, setParams] = useSearchParams();
   const [confirm, confirmEl] = useConfirm();
 
-  const [view, setView] = useState('month');
+  const [view, setView] = usePersistentState('cal_view', 'month');
   const [mode, setMode] = useState(readMode);
   // Kalendar boleh disusun ikut tarikh POS (lalai) atau tarikh SHOOT.
   // Lalai: ikut tarikh SHOOT (pilihan diingat dalam browser).
@@ -46,7 +49,7 @@ export default function CalendarPage() {
   const isShoot = dk === 'shootDate';
   useEffect(() => { try { localStorage.setItem(DATE_KEY, dk); } catch { /* abaikan */ } }, [dk]);
   const [anchor, setAnchor] = useState(today());
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [filters, setFilters] = usePersistentState('cal_filters', EMPTY_FILTERS);
   const [openDay, setOpenDay] = useState(null);
   const [saving, setSaving] = useState(false);
   const [drag, setDrag] = useState(null);
@@ -177,7 +180,9 @@ export default function CalendarPage() {
     const real = list.filter((c) => !c.isSlot);
     const slots = list.length - real.length;
     const parts = breakdown(mode, real, ctx);
-    const late = isShoot ? 0 : real.filter((c) => c.publishDate < t0 && findStatus(config, c.status).stage !== 'published').length;
+    const stepKey = isShoot ? 'shot' : 'posted';
+    const doneN = real.filter((c) => progressOf(config, c)[stepKey]).length;
+    const late = day < t0 ? real.length - doneN : 0;
     const out = parseDate(day).getMonth() !== month;
     return (
       <button
@@ -203,6 +208,7 @@ export default function CalendarPage() {
         )}
         <span className="cal-flags">
           {late > 0 && <span className="cal-flag late">{late} lewat</span>}
+          {real.length > 0 && doneN > 0 && <span className="cal-flag done" title={isShoot ? 'Sudah dishoot' : 'Sudah dipos'}>✓ {doneN}/{real.length}</span>}
           {slots > 0 && <span className="cal-flag slot">{slots} slot</span>}
         </span>
         {canCreate && !list.length && <span className="cal-hint"><Plus size={12} />Tambah</span>}
@@ -228,6 +234,7 @@ export default function CalendarPage() {
           <span className="week-meta">
             {isShoot ? c.publishDate && <span className="week-post">Pos {fmtDate(c.publishDate)}</span> : c.publishTime && <span>{c.publishTime}</span>}
             {c.platform && <span className="tag" title={c.platform}>{platformShort(c.platform)}</span>}
+            <ProgressDots content={c} />
             {ownerName && <span className="row gap-xs min0"><Avatar name={ownerName} size={18} /><span className="ellipsis">{ownerName.split(' ')[0]}</span></span>}
           </span>
         )}
@@ -307,7 +314,7 @@ export default function CalendarPage() {
                 if (!rows.length) return <Empty title="Tiada content bulan ini" text="Tukar bulan atau kosongkan penapis." />;
                 return (
                   <div className="table-wrap"><table className="table" style={{ minWidth: 760 }}>
-                    <thead><tr><th>Pos</th><th>Shoot</th><th>Content</th><th>Jenis</th><th>Platform</th><th>Pemilik</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Pos</th><th>Shoot</th><th>Content</th><th>Jenis</th><th>Platform</th><th>Pemilik</th><th>Kemajuan</th><th>Status</th></tr></thead>
                     <tbody>{rows.map((c) => (
                       <tr key={c.id} className="clickable" onClick={() => (c.isSlot ? setDrawer({ content: c }) : navigate(`/content/${c.id}`))}>
                         <td className={isShoot ? '' : 'strong'}>{c.publishDate ? fmtDate(c.publishDate, { weekday: 'short' }) : '—'}{c.publishTime ? `, ${c.publishTime}` : ''}</td>
@@ -316,6 +323,7 @@ export default function CalendarPage() {
                         <td><span className="meta-dot"><span className="dot" style={{ background: typeColor(config, c.type) }} />{c.type || '—'}</span></td>
                         <td>{c.platform || '—'}</td>
                         <td>{c.ownerName ? <span className="meta-dot"><span className="dot" style={{ background: staffColor[c.ownerStaffId] || OTHER }} />{c.ownerName}</span> : '—'}</td>
+                        <td>{!c.isSlot && <ProgressDots content={c} showLabel />}</td>
                         <td>{c.isSlot ? <span className="tag">Slot</span> : <ContentStatusPill value={c.status} />}</td>
                       </tr>
                     ))}</tbody>

@@ -11,8 +11,8 @@ import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
 import { useQuery } from '../hooks/useFirestore';
 import { can, isCreatorOnly } from '../lib/permissions';
-import { updateById, deleteContent, updateOwnTask, addLink, removeLink, saveReview, logActivity } from '../lib/db';
-import { statusList, stageOf, statusForStage, findStatus, STAGES } from '../lib/statuses';
+import { updateById, deleteContent, updateOwnTask, addLink, removeLink, saveReview, logActivity, viewerUids } from '../lib/db';
+import { statusList, stageOf, statusForStage, findStatus } from '../lib/statuses';
 import { TASK_ROLES, TASK_STATUSES, REVIEW_OUTCOMES, METRIC_FIELDS, findOpt, slug, num } from '../lib/constants';
 import { fmtDate, fmtDateTime, relDue, today, addDays } from '../lib/dates';
 import { latestByTarget, engagementRate, pct } from '../lib/metrics';
@@ -23,6 +23,8 @@ import CommentThread from '../components/CommentThread';
 import MetricsModal from '../components/MetricsModal';
 import BriefDrawer from '../components/BriefDrawer';
 import { useStatusChange } from '../components/StatusChangeModal';
+import { ProgressButtons, useProgressAction } from '../components/Progress';
+import { videoApprovalOn } from '../lib/progress';
 
 const BRIEF_FIELDS = [
   ['topic', 'Topik'], ['objective', 'Objektif'], ['audience', 'Sasaran audiens'], ['hook', 'Hook'],
@@ -49,18 +51,37 @@ function Fold({ title, hint, hintTone = 'gray', action, children, defaultOpen })
   );
 }
 
-function Stepper({ status }) {
+// Kemajuan video (Shoot · Edit · Pos) + status kelulusan idea dan video, dalam satu kad.
+function ProgressCard({ content }) {
   const config = useConfig();
-  const flow = STAGES.filter((s) => s.key !== 'archived');
-  const cur = flow.findIndex((s) => s.key === stageOf(config, status));
+  const action = useProgressAction();
+  const stage = stageOf(config, content.status);
+  const plan = content.planApproval;
+  const ret = content.planReturn;
+  const vid = content.approval;
+  const videoGate = videoApprovalOn(config);
   return (
-    <div className="stepper card card-pad">
-      {flow.map((s, i) => (
-        <div key={s.key} className={`step${i < cur ? ' done' : ''}${i === cur ? ' now' : ''}`}>
-          <span className="step-node">{i < cur ? '✓' : i + 1}</span>
-          <span>{s.label}</span>
-        </div>
-      ))}
+    <div className="card card-pad progress-card">
+      <ProgressButtons content={content} action={action} size="lg" />
+      <div className="appr-states small">
+        <span>
+          <span className="muted">Idea: </span>
+          {plan?.at ? <span className="ok-text">Diluluskan {fmtDate(plan.at.slice(0, 10))}{plan.byName ? ` oleh ${plan.byName}` : ''}</span>
+            : ret?.at ? <span className="warn-text">Perlu diubah: {ret.note}</span>
+              : stage === 'idea' ? <span className="warn-text">Menunggu kelulusan</span> : <span className="muted">Tiada rekod kelulusan</span>}
+        </span>
+        {videoGate && (
+          <span>
+            <span className="muted">Video: </span>
+            {stage === 'review' ? <span className="warn-text">Menunggu kelulusan</span>
+              : vid?.outcome === 'approved' && ['ready', 'published'].includes(stage) ? <span className="ok-text">Diluluskan{vid.byName ? ` oleh ${vid.byName}` : ''}</span>
+                : vid?.outcome === 'returned' && stage === 'production' ? <span className="warn-text">Perlu pembetulan: {vid.note}</span>
+                  : ['ready', 'published'].includes(stage) ? <span className="ok-text">Lulus</span> : <span className="muted">Selepas edit</span>}
+          </span>
+        )}
+        {content.publishUrl && <a href={content.publishUrl} target="_blank" rel="noreferrer" className="row gap-xs"><ExternalLink size={13} />Lihat post</a>}
+      </div>
+      {action.el}
     </div>
   );
 }
@@ -135,8 +156,8 @@ function ReviewBlock({ content }) {
       )}
       {!canReview && !content.review && <p className="muted small">Belum disemak.</p>}
 
-      <CommentThread targetType="content" targetId={content.id} thread="review" visibleUids={content.assigneeUids || []} placeholder="Balas semakan ini" emptyText="Belum ada komen semakan." />
-      <MetricsModal open={metricsOpen} onClose={() => setMetricsOpen(false)} target={{ type: 'content', id: content.id, campaignId: content.campaignId }} />
+      <CommentThread targetType="content" targetId={content.id} thread="review" visibleUids={viewerUids(content)} placeholder="Balas semakan ini" emptyText="Belum ada komen semakan." />
+      <MetricsModal open={metricsOpen} onClose={() => setMetricsOpen(false)} target={{ type: 'content', id: content.id, campaignId: content.campaignId, ownerUid: content.ownerUid }} />
     </div>
   );
 }
@@ -172,7 +193,7 @@ export default function ContentDetail() {
   const doneChecks = checklist.filter((i) => content.checklist?.[i.key]).length;
   const doneTasks = myTasks.filter((t) => t.status === 'done').length;
   const lateTasks = myTasks.filter((t) => t.status !== 'done' && t.deadline && t.deadline < today()).length;
-  const canTouch = canEdit || (content.assigneeUids || []).includes(profile.uid);
+  const canTouch = canEdit || (!!content.ownerUid && content.ownerUid === profile.uid);
 
   const chip = (icon, label, onClick) => (
     <button type="button" className="chip" onClick={onClick} disabled={!onClick} style={!onClick ? { cursor: 'default' } : undefined}>
@@ -228,7 +249,7 @@ export default function ContentDetail() {
         {content.archived && <span className="pill tone-gray">Diarkibkan</span>}
       </div>
 
-      <Stepper status={content.status} />
+      <ProgressCard content={content} />
 
       <Fold title="Brief dan skrip" hint={content.brief?.hook ? 'Hook sudah ditulis' : 'Belum diisi'} hintTone={content.brief?.hook ? 'green' : 'gray'} action={canEdit && <Button size="sm" variant="ghost" icon={Pencil} onClick={() => setEditOpen(true)}>Edit</Button>}>
         {BRIEF_FIELDS.filter(([k]) => content.brief?.[k]).map(([k, label]) => (
@@ -303,7 +324,7 @@ export default function ContentDetail() {
       )}
 
       <Fold title="Catatan pasukan">
-        <CommentThread targetType="content" targetId={content.id} thread="general" visibleUids={content.assigneeUids || []} placeholder="Tulis catatan" emptyText="Belum ada catatan." />
+        <CommentThread targetType="content" targetId={content.id} thread="general" visibleUids={viewerUids(content)} placeholder="Tulis catatan" emptyText="Belum ada catatan." />
       </Fold>
 
       {!creatorOnly && (

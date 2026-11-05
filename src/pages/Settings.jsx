@@ -181,7 +181,7 @@ function RoleAccessTab() {
   const toggle = (r, k) => setDraft((d) => ({ ...d, [r]: d[r].includes(k) ? d[r].filter((x) => x !== k) : [...d[r], k] }));
   const save = async () => {
     setBusy(true);
-    await run(() => setById('settings', 'config', { roleAccess: draft, updatedBy: profile.name }), 'Akses role disimpan');
+    await run(() => setById('settings', 'config', { roleAccess: draft, roleAccessKnown: PAGES.map((p) => p.key), updatedBy: profile.name }), 'Akses role disimpan');
     setBusy(false);
   };
   return (

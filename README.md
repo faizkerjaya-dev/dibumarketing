@@ -250,3 +250,14 @@ Pilihan semasa import: platform, berapa hari shoot sebelum pos (dibaca dari tab 
 Email dipadankan dengan email dalam profil staf (Pasukan) atau email akaun log masuk yang dipautkan ke staf.
 
 **Padam import (Admin sahaja).** Tersalah import? Buka Kalendar › Import Excel. Bahagian *Import terdahulu* menyenaraikan setiap import (nama fail, masa, siapa, julat tarikh). Klik **Padam import ini**, taip `PADAM` untuk sahkan. Semua content dari import itu dan tugasan Shooting berkaitan dipadam. Jika ada content yang sudah bergerak dari status Idea, amaran dipaparkan dahulu.
+
+## 16. Aliran kerja lebih praktikal (v3.5)
+
+**Wajib publish semula `firestore.rules`** selepas kemas kini ini.
+
+- **Content Creator hanya nampak content milik sendiri.** Akses kini ikut medan `ownerUid` (akaun pemilik content), bukan senarai staf yang terlibat. Creator yang juga diberi role *viewer* tetap dihadkan. Medan `ownerUid` diisi/dibetulkan sendiri bila Admin atau pengurus membuka sistem. Tugasan pada content orang lain masih kelihatan dalam tab *Tugasan*, tetapi content itu tidak boleh dibuka.
+- **Penunjuk Shoot · Edit · Pos.** Satu klik di *Hari ini*, halaman content, dan kalendar/papan kerja (titik). Status dan tugasan berkaitan dikemas kini sendiri:
+  Shoot ✓ → Produksi · Edit ✓ → Semakan (atau terus Sedia terbit jika kelulusan video dimatikan) · Pos ✓ → minta link post → Terbit.
+- **Kelulusan dua langkah.** *Lulus idea/pelan* lebih awal sehingga 10 minggu, dikumpul ikut minggu, satu butang untuk seminggu. *Lulus video sebelum pos* boleh dimatikan oleh Admin (kotak "Wajib lulus video sebelum pos").
+- **Prestasi content (Hari ke-7).** Halaman baharu `/performance`: rekod sekali bagi setiap video 7 hari selepas pos, dalam satu jadual (boleh tampal dari Excel) atau import fail eksport TikTok Studio/Excel. Kad skor memberi gred Hebat/Baik/Sederhana/Lemah berbanding median tontonan platform 90 hari. Rekod disimpan sebagai `metrics/{contentId}__d7`; rekod lama kekal.
+- **Penapis diingat** dalam pelayar (kalendar, papan kerja, kelulusan, laporan, creator, pustaka, pasukan).

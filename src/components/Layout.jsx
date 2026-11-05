@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   LayoutDashboard, CalendarDays, Columns3, Users, Star, Megaphone, Link2, BarChart3, Settings, ListChecks,
-  PackageCheck, Bell, Plus, Menu, X, LogOut, ChevronsLeft, ChevronsRight, BadgeCheck, Target,
+  PackageCheck, Bell, Plus, Menu, X, LogOut, ChevronsLeft, ChevronsRight, BadgeCheck, Target, TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -12,7 +12,7 @@ import { can, isCreatorOnly } from '../lib/permissions';
 import { ROLES } from '../lib/constants';
 import { stageOf } from '../lib/statuses';
 import { allowedPages, REPORT_PAGES } from '../lib/access';
-import { fmtDateTime } from '../lib/dates';
+import { fmtDateTime, today, addDays } from '../lib/dates';
 import { useNotifications } from '../hooks/useNotifications';
 import { Avatar, SearchInput } from './ui';
 
@@ -32,6 +32,7 @@ function navItems(profile, config, pendingApprovals) {
     ok.has('deliverables') && { to: '/deliverables', label: 'Deliverable', icon: PackageCheck },
     ok.has('library') && { to: '/library', label: 'Pustaka link', icon: Link2 },
     ok.has('kpi') && { to: '/kpi', label: 'KPI', icon: Target },
+    ok.has('performance') && { to: '/performance', label: 'Prestasi content', icon: TrendingUp },
     REPORT_PAGES.some((r) => ok.has(r.key)) && { to: '/analytics', label: 'Laporan', icon: BarChart3 },
     ok.has('settings') && { to: '/settings', label: 'Tetapan', icon: Settings },
   ];
@@ -148,7 +149,15 @@ export default function Layout() {
     try { return localStorage.getItem('dibu_sidebar') === 'collapsed'; } catch { return false; }
   });
   const location = useLocation();
-  const pendingApprovals = useMemo(() => content.filter((c) => !c.archived && !c.isSlot && stageOf(config, c.status) === 'review').length, [content, config]);
+  // Lencana Kelulusan: video menunggu + idea yang dijadual dalam 14 hari akan datang (perlu lulus segera).
+  const pendingApprovals = useMemo(() => {
+    const soon = addDays(today(), 14);
+    return content.filter((c) => {
+      if (c.archived || c.isSlot) return false;
+      const st = stageOf(config, c.status);
+      return st === 'review' || (st === 'idea' && (c.publishDate || c.shootDate) && (c.shootDate || c.publishDate) <= soon);
+    }).length;
+  }, [content, config]);
   const items = navItems(profile, config, can(profile, 'content.approve') ? pendingApprovals : 0);
   const creatorOnly = isCreatorOnly(profile);
   const dataErrors = Object.entries(errors).filter(([, e]) => e);

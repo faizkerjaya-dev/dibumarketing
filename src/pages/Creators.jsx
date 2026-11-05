@@ -1,5 +1,6 @@
 // Direktori creator luar (KOL, influencer, UGC, affiliate). Seorang creator boleh ada banyak tag.
 import { useMemo, useState } from 'react';
+import { usePersistentState } from '../hooks/usePersistentState';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { useData } from '../context/DataContext';
@@ -31,9 +32,9 @@ export default function Creators() {
   const { profile } = useAuth();
   const config = useConfig();
   const navigate = useNavigate();
-  const [type, setType] = useState('');
-  const [f, setF] = useState({ q: '', platform: '', niche: '', status: '' });
-  const [sort, setSort] = useState('name');
+  const [type, setType] = usePersistentState('creator_type', '');
+  const [f, setF] = usePersistentState('creator_filters', { q: '', platform: '', niche: '', status: '' });
+  const [sort, setSort] = usePersistentState('creator_sort', 'name');
   const [page, setPage] = useState(0);
   const [showArchived, setShowArchived] = useState(false);
 

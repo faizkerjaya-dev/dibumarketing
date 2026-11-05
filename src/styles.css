@@ -428,6 +428,7 @@ a.list-row:hover { background: var(--surface-2); color: var(--text); }
 .cal-flag { font-size: 10.5px; font-weight: 650; padding: 1px 6px; border-radius: 5px; }
 .cal-flag.late { background: var(--red-bg); color: var(--red-fg); }
 .cal-flag.slot { border: 1px dashed var(--border-2); color: var(--muted); }
+.cal-flag.done { background: var(--green-bg); color: var(--green-fg); }
 .cal-hint { margin-top: auto; display: none; align-items: center; gap: 4px; font-size: 11px; color: var(--faint); padding-left: 3px; }
 .cal-sum:hover .cal-hint { display: inline-flex; }
 .cal-head .is-today { color: var(--link); }
@@ -462,7 +463,7 @@ a.list-row:hover { background: var(--surface-2); color: var(--text); }
 .cal-sum { min-height: 108px; }
 @media (max-width: 700px) {
   .cal-sum { min-height: 72px; padding: 5px 3px; }
-  .cal-count span, .cal-flag.slot, .cal-hint { display: none !important; }
+  .cal-count span, .cal-flag.slot, .cal-flag.done, .cal-hint { display: none !important; }
   .cal-flag.late { font-size: 0; width: 7px; height: 7px; padding: 0; border-radius: 50%; background: var(--red-fill); }
   .cal-head div { padding: 8px 4px; text-align: center; }
 }
@@ -538,3 +539,65 @@ a.list-row:hover { background: var(--surface-2); color: var(--text); }
 .post-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-left: 4px solid var(--teal-fill); border-radius: 10px; background: var(--teal-bg); text-align: left; cursor: pointer; font-family: var(--font); color: var(--text); flex-wrap: wrap; }
 .post-row:hover { border-color: var(--teal-fill); }
 @media (max-width: 700px) { .cal-postline { font-size: 0; width: 7px; height: 7px; padding: 0; border-radius: 50%; background: var(--teal-fill); } }
+
+/* ---------- v3.5: Kemajuan Shoot · Edit · Pos ---------- */
+.ok-text { color: var(--green-fg); font-weight: 600; }
+.warn-text { color: var(--amber-fg); font-weight: 600; }
+.pdots { display: inline-flex; align-items: center; gap: 3px; flex: none; }
+.pdot { width: 7px; height: 7px; border-radius: 50%; background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--border-2); }
+.pdot.on { background: var(--green-fg); box-shadow: none; }
+.pdot.late { box-shadow: inset 0 0 0 1.5px var(--red-fg); background: var(--red-bg); }
+.pdots-label { font-size: 11px; color: var(--muted); margin-left: 3px; font-weight: 600; }
+.pbtns { display: inline-flex; align-items: center; flex-wrap: nowrap; }
+.pstep-wrap { display: inline-flex; align-items: center; }
+.pline { width: 10px; height: 2px; background: var(--border-2); }
+.pline.on { background: var(--green-fill); }
+.pstep { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-2); background: var(--surface); color: var(--muted);
+  border-radius: 999px; padding: 3px 9px 3px 7px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .12s, border-color .12s; }
+.pstep:disabled { cursor: default; }
+.pstep:not(:disabled):hover { border-color: var(--brand-line); color: var(--text); }
+.pstep.next { border-color: var(--brand); color: var(--brand-ink); background: var(--brand-soft); }
+.pstep.late { border-color: var(--red-fill); color: var(--red-fg); background: var(--red-bg); }
+.pstep.on { background: var(--green-bg); border-color: transparent; color: var(--green-fg); }
+.pstep.on:not(:disabled):hover { background: var(--green-bg); border-color: var(--green-fill); color: var(--green-fg); }
+.pbtns-lg .pline { width: 22px; }
+.pbtns-lg .pstep { padding: 8px 14px 8px 11px; font-size: 13.5px; gap: 6px; }
+.progress-card { display: flex; flex-direction: column; gap: 12px; }
+.appr-states { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: center; }
+@media (max-width: 560px) {
+  .pbtns-lg { width: 100%; }
+  .pbtns-lg .pstep-wrap { flex: 1; }
+  .pbtns-lg .pline { flex: 1; width: auto; min-width: 6px; }
+  .pbtns-lg .pstep { padding: 8px 10px; }
+}
+.video-group { overflow: hidden; }
+.video-group-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; background: var(--surface-2); border-bottom: 1px solid var(--divider); }
+.video-group-head.late strong { color: var(--red-fg); }
+.video-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 11px 16px; border-top: 1px solid var(--divider); }
+.video-group-head + .video-row { border-top: 0; }
+.video-title { color: var(--text); font-weight: 650; }
+.video-title:hover { color: var(--link); }
+.appr-hook { display: block; font-size: 12.5px; color: var(--text-2); font-style: italic; margin: 2px 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.appr-head.late strong { color: var(--red-fg); }
+
+/* ---------- v3.5: Prestasi content ---------- */
+.nowrap { white-space: nowrap; }
+.tone-fill-green { background: var(--green-fill); } .tone-fill-teal { background: var(--teal-fill); }
+.tone-fill-amber { background: var(--amber-fill); } .tone-fill-red { background: var(--red-fill); }
+.perf-intro { display: flex; gap: 10px; align-items: flex-start; padding: 11px 14px; border-radius: 12px; background: var(--blue-bg); color: var(--text-2); font-size: 13px; }
+.perf-intro svg { flex: none; margin-top: 2px; color: var(--blue-fg); }
+.perf-grid td { padding-top: 7px; padding-bottom: 7px; }
+.perf-grid th:first-child, .perf-grid td:first-child, .table td.perf-title { padding-left: 16px; }
+.perf-title { min-width: 220px; max-width: 320px; }
+.perf-title a.block { color: var(--text); font-weight: 600; display: block; }
+.perf-grid tr.dirty td { background: var(--brand-soft); }
+.cell-input { width: 92px; height: 32px; padding: 4px 8px; text-align: right; font-variant-numeric: tabular-nums; }
+.grade-bar { display: flex; height: 26px; border-radius: 8px; overflow: hidden; gap: 2px; margin-bottom: 10px; }
+.grade-bar span { display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--text); min-width: 22px; }
+.icon-btn.sm { width: 24px; height: 24px; }
+.how ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; line-height: 1.55; }
+.how h3 { margin: 0; }
+.perf-grid th:last-child, .perf-grid td:last-child { padding-right: 16px; }
+.perf-grid th:first-child { padding-left: 16px; }
+.card-head-pad { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 6px; }
+.card-head-pad h3 { margin: 0; font-size: 15px; }

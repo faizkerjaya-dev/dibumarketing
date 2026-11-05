@@ -1,5 +1,6 @@
 // Laporan: content, kempen, creator dan staf. Semua angka dari rekod sebenar; data tiada dipaparkan sebagai "—".
 import { useMemo, useState } from 'react';
+import { usePersistentState } from '../hooks/usePersistentState';
 import { Link, useSearchParams } from 'react-router-dom';
 import { collection } from 'firebase/firestore';
 import { Download } from 'lucide-react';
@@ -33,7 +34,7 @@ export default function Analytics() {
   const tab = allowedTabs.includes(wanted) ? wanted : allowedTabs[0] || 'content';
   const setTab = (t) => setParams({ tab: t }, { replace: true });
   const statsQ = useQuery(useMemo(() => collection(db, 'accountStats'), []), []);
-  const [f, setF] = useState({ from: monthStart(now.getFullYear(), now.getMonth()), to: monthEnd(now.getFullYear(), now.getMonth()), platform: '', campaignId: '', pillar: '', ownerStaffId: '', creatorId: '' });
+  const [f, setF] = usePersistentState('rep_filters', { from: monthStart(now.getFullYear(), now.getMonth()), to: monthEnd(now.getFullYear(), now.getMonth()), platform: '', campaignId: '', pillar: '', ownerStaffId: '', creatorId: '' });
   const mq = useMemo(() => collection(db, 'metrics'), []);
   const metrics = useQuery(mq, [mq]);
   const latest = useMemo(() => latestByTarget(metrics.data), [metrics.data]);

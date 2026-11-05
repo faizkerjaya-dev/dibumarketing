@@ -1,5 +1,6 @@
 // Pengurusan staf dalaman: beban kerja mingguan, papan agihan tugasan, dan direktori staf.
 import { useEffect, useMemo, useState } from 'react';
+import { usePersistentState } from '../hooks/usePersistentState';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Plus, UserPlus } from 'lucide-react';
 import { useData } from '../context/DataContext';
@@ -18,12 +19,12 @@ export default function Team() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const [tab, setTab] = useState('workload');
+  const [tab, setTab] = usePersistentState('team_tab', 'workload');
   const [week, setWeek] = useState(startOfWeek(today()));
   const [taskModal, setTaskModal] = useState(null);
   const [staffModal, setStaffModal] = useState(null);
   const [selected, setSelected] = useState('');
-  const [af, setAf] = useState({ role: '', campaignId: '', status: 'open', priority: '', due: '' });
+  const [af, setAf] = usePersistentState('team_filters', { role: '', campaignId: '', status: 'open', priority: '', due: '' });
   const [q, setQ] = useState('');
   const canAssign = can(profile, 'task.assign');
   const canManage = can(profile, 'staff.manage');
