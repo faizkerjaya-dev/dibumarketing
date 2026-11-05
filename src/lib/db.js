@@ -705,6 +705,9 @@ export async function markProgress(content, stepKey, on, ctx) {
       patch.status = statusForStage(config, videoApprovalOn(config) ? 'review' : 'ready');
     }
     if (stepKey === 'posted') {
+      if (!can(profile, 'content.post') && !config?.social?.creatorCanPost) {
+        throw new AppError('Pos dibuat oleh Social Media Manager. Tandakan Siap edit; SMM akan pos mengikut jadual.');
+      }
       if (videoApprovalOn(config) && ['idea', 'production', 'review'].includes(st) && !can(profile, 'content.approve')) {
         throw new AppError('Video ini belum diluluskan. Tunggu kelulusan sebelum pos.');
       }
@@ -818,4 +821,29 @@ export async function saveDay7Metrics(rows, { profile, source = 'manual' }) {
   });
   await logActivity(profile, { type: 'metrics_d7', message: `${by(profile)} rekod prestasi Hari ke-7 bagi ${clean.length} content`, refType: 'content', refId: clean.length === 1 ? clean[0].content.id : null });
   return clean.length;
+}
+
+/* ---------------- Media sosial: akaun & pos silang ---------------- */
+
+export async function saveSocialSettings(data, profile) {
+  await setById('settings', 'social', { ...data, updatedBy: by(profile) });
+}
+
+// Tanda / buang tanda satu pos silang (contoh IG Reels bagi video TikTok).
+export async function markCrossPost(content, idx, on, { url = '', profile }) {
+  const list = [...(content.crossPosts || [])];
+  if (!list[idx]) throw new AppError('Pos ini tidak dijumpai.');
+  if (on) {
+    const u = String(url || '').trim();
+    if (!/^https?:\/\//i.test(u)) throw new AppError('Tampal link post (bermula dengan https://).');
+    list[idx] = { ...list[idx], url: u, postedAt: nowIso(), postedBy: by(profile) };
+  } else {
+    list[idx] = { ...list[idx], url: '', postedAt: null, postedBy: '' };
+  }
+  await updateById('content', content.id, { crossPosts: list }, profile);
+  await logActivity(profile, { type: 'cross_posted', message: `${by(profile)} ${on ? 'tanda dipos' : 'buang tanda pos'} (${list[idx].accountId}): “${content.title}”`, refType: 'content', refId: content.id });
+}
+
+export async function saveReportNote(key, text, profile) {
+  await setById('reportNotes', key, { text: text || '', updatedBy: by(profile), updatedAtIso: nowIso() });
 }

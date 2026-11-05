@@ -2,23 +2,26 @@
 // Pengguna boleh ada lebih dari satu role; kebenaran digabungkan.
 
 const RULES = {
-  'content.create': ['admin', 'marketing_manager', 'content_manager'],
-  'content.edit': ['admin', 'marketing_manager', 'content_manager'],
+  'content.create': ['admin', 'marketing_manager', 'social_media_manager', 'content_manager'],
+  'content.edit': ['admin', 'marketing_manager', 'social_media_manager', 'content_manager'],
   'content.delete': ['admin'],
-  'content.review': ['admin', 'marketing_manager'],
-  'content.approve': ['admin', 'marketing_manager'],
-  'kpi.manage': ['admin', 'marketing_manager'],
-  'stats.enter': ['admin', 'marketing_manager', 'content_manager', 'creator_manager'],
-  'library.add': ['admin', 'marketing_manager', 'content_manager', 'creator_manager'],
-  'task.assign': ['admin', 'marketing_manager', 'content_manager'],
+  'content.review': ['admin', 'marketing_manager', 'social_media_manager'],
+  'content.approve': ['admin', 'marketing_manager', 'social_media_manager'],
+  'kpi.manage': ['admin', 'marketing_manager', 'social_media_manager'],
+  'stats.enter': ['admin', 'marketing_manager', 'social_media_manager', 'content_manager', 'creator_manager'],
+  'library.add': ['admin', 'marketing_manager', 'social_media_manager', 'content_manager', 'creator_manager'],
+  'task.assign': ['admin', 'marketing_manager', 'social_media_manager', 'content_manager'],
   'staff.manage': ['admin', 'marketing_manager'],
   'creator.manage': ['admin', 'marketing_manager', 'creator_manager'],
   'campaign.manage': ['admin', 'marketing_manager'],
   'campaign.creators': ['admin', 'marketing_manager', 'creator_manager'],
-  'metrics.enter': ['admin', 'marketing_manager', 'content_manager', 'creator_manager'],
+  'metrics.enter': ['admin', 'marketing_manager', 'social_media_manager', 'content_manager', 'creator_manager'],
+  // Tanda Pos & urus akaun media sosial. Content Creator boleh pos hanya jika dibenarkan (Jadual pos › Tetapan).
+  'content.post': ['admin', 'marketing_manager', 'social_media_manager', 'content_manager'],
+  'social.manage': ['admin', 'marketing_manager', 'social_media_manager'],
   'settings.manage': ['admin'],
   'users.manage': ['admin'],
-  'view.all': ['admin', 'marketing_manager', 'content_manager', 'creator_manager', 'viewer'],
+  'view.all': ['admin', 'marketing_manager', 'social_media_manager', 'content_manager', 'creator_manager', 'viewer'],
 };
 
 export function hasRole(profile, ...roles) {
@@ -34,7 +37,7 @@ export function can(profile, action) {
   return hasRole(profile, ...allowed);
 }
 
-export const MANAGER_ROLES = ['admin', 'marketing_manager', 'content_manager', 'creator_manager'];
+export const MANAGER_ROLES = ['admin', 'marketing_manager', 'social_media_manager', 'content_manager', 'creator_manager'];
 
 // Content Creator (tanpa role pengurus) hanya nampak content MILIK SENDIRI.
 // Walaupun dia juga diberi role "viewer", dia tetap dihadkan kepada content sendiri,

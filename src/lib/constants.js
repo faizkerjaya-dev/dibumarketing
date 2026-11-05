@@ -6,6 +6,7 @@ export const ROLES = {
   admin: 'Admin',
   marketing_manager: 'Marketing Manager',
   content_manager: 'Content Manager',
+  social_media_manager: 'Social Media Manager',
   content_creator: 'Content Creator',
   creator_manager: 'Creator Manager',
   viewer: 'Pemerhati',
@@ -102,7 +103,7 @@ export const METRIC_FIELDS = [
 export const DEFAULT_CONFIG = {
   brandName: 'Dibu Marketing',
   contentStatuses: DEFAULT_STATUSES,
-  platforms: ['TikTok', 'Instagram', 'Facebook', 'YouTube'],
+  platforms: ['TikTok', 'Instagram', 'Facebook', 'Threads', 'YouTube'],
   pillars: ['Parenting', 'Baby Nutrition', 'Produk', 'Hiburan', 'Jenama', 'Promosi', 'UGC'],
   contentTypes: ['Video pendek', 'Reel', 'Carousel', 'Story', 'Post statik', 'Live', 'Video panjang'],
   products: ['Chicken Soup', 'Nasi Lemak', 'Oatmeal Kurma'],

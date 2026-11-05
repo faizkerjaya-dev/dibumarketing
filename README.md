@@ -261,3 +261,15 @@ Email dipadankan dengan email dalam profil staf (Pasukan) atau email akaun log m
 - **Kelulusan dua langkah.** *Lulus idea/pelan* lebih awal sehingga 10 minggu, dikumpul ikut minggu, satu butang untuk seminggu. *Lulus video sebelum pos* boleh dimatikan oleh Admin (kotak "Wajib lulus video sebelum pos").
 - **Prestasi content (Hari ke-7).** Halaman baharu `/performance`: rekod sekali bagi setiap video 7 hari selepas pos, dalam satu jadual (boleh tampal dari Excel) atau import fail eksport TikTok Studio/Excel. Kad skor memberi gred Hebat/Baik/Sederhana/Lemah berbanding median tontonan platform 90 hari. Rekod disimpan sebagai `metrics/{contentId}__d7`; rekod lama kekal.
 - **Penapis diingat** dalam pelayar (kalendar, papan kerja, kelulusan, laporan, creator, pustaka, pasukan).
+
+## 17. Social Media Manager (v3.6)
+
+**Wajib publish semula `firestore.rules`.**
+
+- **Role baharu `social_media_manager`** (Tetapan › Pengguna). Ketua Content Creator: nampak semua content, lulus idea & video, edit content, agih tugasan, set sasaran KPI, rekod prestasi dan pengikut, dan pos ke semua akaun. Tidak boleh padam content atau ubah tetapan sistem (Admin sahaja).
+- **Pusat kawalan** (`/control`, halaman utama SMM): ringkasan, senarai "Perlu tindakan anda", pos hari ini ikut akaun, dan kad kemajuan setiap creator minggu ini.
+- **Jadual pos** (`/posting`): semua pos ke semua akaun (TikTok, IG, FB, Threads…), ikut masa. Panel kanan: caption/hashtag (salin), link video, tampal link post → Tanda sudah dipos.
+- **Akaun media sosial & pos silang**: akaun diurus dalam Jadual pos › Akaun & tetapan (disimpan dalam `settings/social`). Setiap content ada akaun utama dan boleh "Pos juga ke" akaun lain; setiap pos ditanda berasingan (`crossPosts`).
+- **Kalendar yang sama**: mod Pos kini mengira setiap pos (termasuk pos silang); pilihan baharu *Warna ikut: Akaun*. SMM lalai ke mod Pos + warna Akaun.
+- **Siapa boleh tanda Pos**: lalai hanya SMM/pengurus. Boleh benarkan Content Creator dalam Akaun & tetapan.
+- **Laporan bulanan** (`/monthly`): pos dirancang vs sebenar, tepat masa, pengikut setiap akaun, gred Hari ke-7, video terbaik/terlemah, prestasi creator, jenis content, catatan SMM. Cetak/PDF dan Export Excel.

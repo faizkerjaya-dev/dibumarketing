@@ -32,6 +32,9 @@ import Notifications from './pages/Notifications';
 import Approvals from './pages/Approvals';
 import KpiPage from './pages/Kpi';
 import Performance from './pages/Performance';
+import Control from './pages/Control';
+import Posting from './pages/Posting';
+import Monthly from './pages/Monthly';
 import ImportPlan from './pages/ImportPlan';
 
 function NotFound() {
@@ -150,6 +153,9 @@ function AppRoutes() {
         <Route path="/approvals" element={<Guard page="approvals"><Approvals /></Guard>} />
         <Route path="/kpi" element={<Guard page="kpi"><KpiPage /></Guard>} />
         <Route path="/performance" element={<Guard page="performance"><Performance /></Guard>} />
+        <Route path="/control" element={<Guard page="control"><Control /></Guard>} />
+        <Route path="/posting" element={<Guard page="posting"><Posting /></Guard>} />
+        <Route path="/monthly" element={<Guard page="report_monthly"><Monthly /></Guard>} />
         <Route path="/import" element={<Guard page="calendar" action="content.create"><ImportPlan /></Guard>} />
         <Route path="/settings" element={<Guard page="settings"><SettingsPage /></Guard>} />
         <Route path="*" element={<NotFound />} />

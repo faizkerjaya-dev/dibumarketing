@@ -10,6 +10,7 @@ import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
 import { updateOwnTask, updateById, addLink, addIdea } from '../lib/db';
 import { statusForStage, stageOf, isArchived } from '../lib/statuses';
+import { can } from '../lib/permissions';
 import { nextStep, lateSteps } from '../lib/progress';
 import { usePersistentState } from '../hooks/usePersistentState';
 import VideoRow from '../components/VideoRow';
@@ -73,7 +74,7 @@ export default function MyTasks() {
       ['Perlu shoot', sorted.filter((x) => x.n === 'shot' && !lateSteps(config, x.c, t0).length && inRangeOrLate(x))],
       ['Perlu edit', sorted.filter((x) => x.n === 'edited' && !lateSteps(config, x.c, t0).length && stageOf(config, x.c.status) !== 'review' && inRangeOrLate(x))],
       ['Menunggu kelulusan video', sorted.filter((x) => stageOf(config, x.c.status) === 'review' && !lateSteps(config, x.c, t0).length)],
-      ['Perlu pos', sorted.filter((x) => x.n === 'posted' && stageOf(config, x.c.status) !== 'review' && !lateSteps(config, x.c, t0).length && inRangeOrLate(x))],
+      [can(profile, 'content.post') || config?.social?.creatorCanPost ? 'Perlu pos' : 'Sedia, menunggu dipos oleh SMM', sorted.filter((x) => x.n === 'posted' && stageOf(config, x.c.status) !== 'review' && !lateSteps(config, x.c, t0).length && inRangeOrLate(x))],
     ];
     return g.map(([k, l]) => [k, l.map((x) => x.c)]).filter(([, l]) => l.length);
   }, [myVideos, config, horizon, t0]);

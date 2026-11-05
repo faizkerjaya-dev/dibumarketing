@@ -8,8 +8,10 @@ import { isCreatorOnly } from './permissions';
 
 export const PAGES = [
   { key: 'dashboard', label: 'Dashboard', path: '/dashboard' },
+  { key: 'control', label: 'Pusat kawalan (SMM)', path: '/control' },
   { key: 'mytasks', label: 'Hari ini / Tugasan saya', path: '/my-tasks' },
   { key: 'calendar', label: 'Kalendar', path: '/calendar' },
+  { key: 'posting', label: 'Jadual pos', path: '/posting' },
   { key: 'pipeline', label: 'Papan kerja', path: '/pipeline' },
   { key: 'approvals', label: 'Kelulusan', path: '/approvals' },
   { key: 'team', label: 'Pasukan', path: '/team' },
@@ -19,6 +21,7 @@ export const PAGES = [
   { key: 'library', label: 'Pustaka link', path: '/library' },
   { key: 'kpi', label: 'KPI', path: '/kpi' },
   { key: 'performance', label: 'Prestasi content (Hari ke-7)', path: '/performance' },
+  { key: 'report_monthly', label: 'Laporan bulanan media sosial', path: '/monthly' },
   { key: 'report_content', label: 'Laporan › Content', path: '/analytics?tab=content', report: 'content' },
   { key: 'report_followers', label: 'Laporan › Pengikut & trend', path: '/analytics?tab=followers', report: 'followers' },
   { key: 'report_engagement', label: 'Laporan › Analisa content', path: '/analytics?tab=engagement', report: 'engagement' },
@@ -32,24 +35,25 @@ export const REPORT_PAGES = PAGES.filter((p) => p.report);
 const ALL = PAGES.map((p) => p.key);
 // Halaman yang ditambah selepas v3.4. Jika Admin sudah simpan Akses role sebelum halaman ini wujud,
 // akses lalai digunakan untuk halaman baharu ini sehingga Admin simpan semula.
-const ADDED_LATER = ['performance'];
+const ADDED_LATER = ['performance', 'control', 'posting', 'report_monthly'];
 const REPORTS = REPORT_PAGES.map((p) => p.key);
 
 // Role yang boleh diubah. Admin sentiasa ada semua akses dan tidak disenaraikan di sini.
-export const EDITABLE_ROLES = ['marketing_manager', 'content_manager', 'creator_manager', 'content_creator', 'viewer'];
+export const EDITABLE_ROLES = ['marketing_manager', 'social_media_manager', 'content_manager', 'creator_manager', 'content_creator', 'viewer'];
 
 export const DEFAULT_ROLE_ACCESS = {
   marketing_manager: ALL,
-  content_manager: ['dashboard', 'mytasks', 'calendar', 'pipeline', 'team', 'campaigns', 'library', 'kpi', 'performance', 'report_content', 'report_followers', 'report_engagement'],
+  social_media_manager: ['control', 'mytasks', 'calendar', 'posting', 'pipeline', 'approvals', 'team', 'library', 'kpi', 'performance', 'report_monthly', 'report_content', 'report_followers', 'report_engagement', 'report_staff'],
+  content_manager: ['dashboard', 'mytasks', 'calendar', 'pipeline', 'team', 'campaigns', 'library', 'kpi', 'performance', 'posting', 'report_content', 'report_followers', 'report_engagement'],
   creator_manager: ['dashboard', 'mytasks', 'calendar', 'creators', 'campaigns', 'deliverables', 'library', 'kpi', 'performance', 'report_campaigns', 'report_creators'],
   content_creator: ['mytasks', 'calendar', 'library', 'performance'],
-  viewer: ['dashboard', 'calendar', 'campaigns', 'kpi', 'performance', ...REPORTS],
+  viewer: ['dashboard', 'calendar', 'campaigns', 'kpi', 'performance', 'report_monthly', ...REPORTS],
 };
 
 // Halaman yang tidak boleh dibuka langsung oleh role tertentu kerana firestore.rules menyekat datanya.
 // Kotak ini dimatikan dalam Tetapan supaya Admin tidak beri akses yang akan berakhir dengan "Akses ditolak".
 export const BLOCKED = {
-  content_creator: ['dashboard', 'pipeline', 'approvals', 'team', 'creators', 'campaigns', 'deliverables', 'kpi', ...REPORTS, 'settings'],
+  content_creator: ['dashboard', 'control', 'posting', 'report_monthly', 'pipeline', 'approvals', 'team', 'creators', 'campaigns', 'deliverables', 'kpi', ...REPORTS, 'settings'],
 };
 
 export function roleAccess(config, role) {
@@ -80,6 +84,7 @@ export const pageAllowed = (profile, config, key) => allowedPages(profile, confi
 // Halaman pertama yang dibenarkan, untuk laluan utama "/".
 export function homePath(profile, config) {
   const set = allowedPages(profile, config);
+  if (set.has('control') && profile?.roles?.includes('social_media_manager') && !profile.roles.includes('admin')) return '/control';
   if (set.has('mytasks') && !set.has('dashboard')) return '/my-tasks';
   const first = PAGES.find((p) => set.has(p.key) && !(p.key === 'mytasks' && !profile?.staffId));
   return first ? first.path.split('?')[0] : '/notifications';

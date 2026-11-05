@@ -99,18 +99,20 @@ export function ProgressButtons({ content, action, size = 'sm', readOnly }) {
   const next = STEPS.find((s) => !pr[s.key]);
   // Video yang menunggu kelulusan belum boleh dipos (kecuali oleh pelulus).
   const waiting = videoApprovalOn(config) && stageOf(config, content.status) === 'review' && !can(profile, 'content.approve');
+  // Jika hanya SMM yang pos, Content Creator tidak boleh tanda Pos.
+  const smmPosts = !can(profile, 'content.post') && !config?.social?.creatorCanPost;
   return (
     <span className={`pbtns pbtns-${size}`} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} role="group" aria-label="Kemajuan video">
       {STEPS.map((s, i) => {
         const Icon = ICONS[s.key];
         const done = pr[s.key];
         const stamp = content.progress?.[s.key];
-        const blocked = s.key === 'posted' && waiting && !done;
+        const blocked = s.key === 'posted' && (waiting || smmPosts) && !done;
         const isNext = next?.key === s.key && !blocked;
         const due = s.key === 'shot' ? content.shootDate : s.key === 'posted' ? content.publishDate : '';
         const title = done
           ? `${s.doneLabel}${stamp?.at ? ` · ${fmtDateTime(stamp.at)}${stamp.by ? ` oleh ${stamp.by}` : ''}` : ''}${editable ? ' (klik untuk buang tanda)' : ''}`
-          : blocked ? 'Menunggu kelulusan video sebelum boleh dipos'
+          : blocked ? (smmPosts ? 'Dipos oleh Social Media Manager mengikut jadual' : 'Menunggu kelulusan video sebelum boleh dipos')
             : `${s.label} belum siap${due ? ` · sasaran ${fmtDate(due)}` : ''}${editable ? ' (klik untuk tanda siap)' : ''}`;
         return (
           <span key={s.key} className="pstep-wrap">

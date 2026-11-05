@@ -11,7 +11,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
-import { can, isCreatorOnly } from '../lib/permissions';
+import { can, isCreatorOnly, hasRole } from '../lib/permissions';
 import { updateById, logActivity, quickAddContent, addIdea, scheduleIdea } from '../lib/db';
 import { findStatus, statusForStage, isArchived, statusList } from '../lib/statuses';
 import { platformShort } from '../lib/constants';
@@ -25,12 +25,12 @@ import { QuickPlanModal, BulkFillModal } from '../components/SlotPlanModal';
 import DayModal, { colorFor, breakdown } from '../components/DayModal';
 import { ProgressDots } from '../components/Progress';
 import { progressOf } from '../lib/progress';
+import { expandCrossPosts, accountsOf, accountColor, accountLabel } from '../lib/social';
 import { usePersistentState } from '../hooks/usePersistentState';
 
 const WEEKDAYS = ['Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab', 'Ahd'];
 const MODE_KEY = 'dibu_cal_color';
 const DATE_KEY = 'dibu_cal_date';
-const readMode = () => { try { return localStorage.getItem(MODE_KEY) || 'status'; } catch { return 'status'; } };
 
 export default function CalendarPage() {
   const { content, staff, staffById, staffColor, ready } = useData();
@@ -42,10 +42,12 @@ export default function CalendarPage() {
   const [confirm, confirmEl] = useConfirm();
 
   const [view, setView] = usePersistentState('cal_view', 'month');
-  const [mode, setMode] = useState(readMode);
+  // Social Media Manager: lalai ikut tarikh POS dan warna ikut AKAUN (jika belum pernah dipilih).
+  const smm = hasRole(profile, 'social_media_manager');
+  const [mode, setMode] = useState(() => { try { return localStorage.getItem(MODE_KEY) || (smm ? 'account' : 'status'); } catch { return 'status'; } });
   // Kalendar boleh disusun ikut tarikh POS (lalai) atau tarikh SHOOT.
   // Lalai: ikut tarikh SHOOT (pilihan diingat dalam browser).
-  const [dk, setDk] = useState(() => { try { return localStorage.getItem(DATE_KEY) || 'shootDate'; } catch { return 'shootDate'; } });
+  const [dk, setDk] = useState(() => { try { return localStorage.getItem(DATE_KEY) || (smm ? 'publishDate' : 'shootDate'); } catch { return 'shootDate'; } });
   const isShoot = dk === 'shootDate';
   useEffect(() => { try { localStorage.setItem(DATE_KEY, dk); } catch { /* abaikan */ } }, [dk]);
   const [anchor, setAnchor] = useState(today());
@@ -74,7 +76,8 @@ export default function CalendarPage() {
   }, [params, setParams]);
 
   const live = useMemo(() => content.filter((c) => !c.archived && !isArchived(config, c.status)), [content, config]);
-  const items = useMemo(() => applyFilters(live, filters), [live, filters]);
+  // Mod Pos: setiap pos silang (IG, FB, Threads…) dipaparkan sebagai item sendiri pada tarikhnya.
+  const items = useMemo(() => applyFilters(isShoot ? live : expandCrossPosts(config, live), filters), [live, filters, isShoot, config]);
   const byDay = useMemo(() => {
     const m = {};
     items.forEach((c) => { const d = isShoot ? c.shootDate || c.publishDate : c[dk]; if (d) (m[d] = m[d] || []).push(c); });
@@ -88,7 +91,7 @@ export default function CalendarPage() {
     Object.values(m).forEach((l) => l.sort((a, b) => (a.publishTime || '99').localeCompare(b.publishTime || '99') || (a.code || '').localeCompare(b.code || '')));
     return m;
   }, [items]);
-  const ideas = useMemo(() => items.filter((c) => !c.publishDate).sort((a, b) => (b.code || '').localeCompare(a.code || '')), [items]);
+  const ideas = useMemo(() => items.filter((c) => !c.publishDate && c._cross == null).sort((a, b) => (b.code || '').localeCompare(a.code || '')), [items]);
 
   const a = parseDate(anchor);
   const monthFrom = toISODate(new Date(a.getFullYear(), a.getMonth(), 1));
@@ -163,7 +166,9 @@ export default function CalendarPage() {
   if (!ready) return <div className="page"><Loading /></div>;
 
   // Legenda mengikut mod warna.
-  const legend = mode === 'owner'
+  const legend = mode === 'account'
+    ? accountsOf(config).map((x) => ({ key: x.id, label: accountLabel(x), color: accountColor(config, x.id) }))
+    : mode === 'owner'
     ? staff.filter((s) => s.status !== 'inactive').map((s) => ({ key: s.id, label: s.name, color: staffColor[s.id] || OTHER }))
     : mode === 'type'
       ? [...(config.contentTypes || []).map((t) => ({ key: t, label: t, color: typeColor(config, t) })), { key: '-', label: 'Belum ditetapkan', color: OTHER }]
@@ -197,7 +202,7 @@ export default function CalendarPage() {
         {real.length > 0 && (
           <span className="cal-count">
             <strong>{real.length}</strong>
-            <span>{isShoot ? 'shoot' : 'content'}</span>
+            <span>{isShoot ? 'shoot' : 'pos'}</span>
           </span>
         )}
         {isShoot && (postByDay[day] || []).length > 0 && <span className="cal-postline">{postByDay[day].length} perlu dipos</span>}
@@ -220,11 +225,11 @@ export default function CalendarPage() {
     const ownerName = staffById[c.ownerStaffId]?.name || c.ownerName;
     return (
       <button
-        key={c.id}
+        key={c._key || c.id}
         type="button"
         className={`week-card${c.isSlot ? ' slot' : ''}`}
         style={{ '--bar': colorFor(mode, c, ctx) }}
-        draggable={canEdit}
+        draggable={canEdit && c._cross == null}
         onDragStart={() => setDrag({ id: c.id })}
         onDragEnd={() => setDrag(null)}
         onClick={() => (c.isSlot ? setDrawer({ content: c }) : navigate(`/content/${c.id}`))}
@@ -254,7 +259,7 @@ export default function CalendarPage() {
         </>}
       >
         <p className="muted small" style={{ marginTop: 4 }}>
-          {items.filter((c) => c[dk] >= monthFrom && c[dk] <= monthTo && !c.isSlot).length} content {isShoot ? 'dishoot' : 'dipos'} bulan ini
+          {items.filter((c) => c[dk] >= monthFrom && c[dk] <= monthTo && !c.isSlot).length} {isShoot ? 'content dishoot' : 'pos (semua akaun)'} bulan ini
           {monthSlots.length > 0 && ` · ${monthSlots.length} slot belum ada tajuk`}
         </p>
       </PageHeader>
@@ -268,7 +273,7 @@ export default function CalendarPage() {
         <span className="small muted">Ikut tarikh</span>
         <Segmented value={dk} onChange={setDk} options={[{ key: 'shootDate', label: 'Shoot' }, { key: 'publishDate', label: 'Pos' }]} />
         <span className="small muted">Warna ikut</span>
-        <Segmented value={mode} onChange={setMode} options={[{ key: 'status', label: 'Status' }, { key: 'type', label: 'Jenis' }, { key: 'owner', label: 'Pemilik' }]} />
+        <Segmented value={mode} onChange={setMode} options={[{ key: 'status', label: 'Status' }, { key: 'type', label: 'Jenis' }, { key: 'owner', label: 'Pemilik' }, { key: 'account', label: 'Akaun' }]} />
         <Segmented value={view} onChange={setView} options={[{ key: 'month', label: 'Bulan' }, { key: 'week', label: 'Minggu' }, { key: 'list', label: 'Senarai' }]} />
       </div>
 
@@ -316,7 +321,7 @@ export default function CalendarPage() {
                   <div className="table-wrap"><table className="table" style={{ minWidth: 760 }}>
                     <thead><tr><th>Pos</th><th>Shoot</th><th>Content</th><th>Jenis</th><th>Platform</th><th>Pemilik</th><th>Kemajuan</th><th>Status</th></tr></thead>
                     <tbody>{rows.map((c) => (
-                      <tr key={c.id} className="clickable" onClick={() => (c.isSlot ? setDrawer({ content: c }) : navigate(`/content/${c.id}`))}>
+                      <tr key={c._key || c.id} className="clickable" onClick={() => (c.isSlot ? setDrawer({ content: c }) : navigate(`/content/${c.id}`))}>
                         <td className={isShoot ? '' : 'strong'}>{c.publishDate ? fmtDate(c.publishDate, { weekday: 'short' }) : '—'}{c.publishTime ? `, ${c.publishTime}` : ''}</td>
                         <td className={isShoot ? 'strong' : ''}>{c.shootDate ? fmtDate(c.shootDate, { weekday: 'short' }) : '—'}</td>
                         <td>{c.isSlot ? <span className="muted">{c.slotLabel || 'Slot kosong'}</span> : <><strong>{c.title}</strong><div className="small muted">{c.code}</div></>}</td>
@@ -334,7 +339,7 @@ export default function CalendarPage() {
           )}
 
           <div className="legend">
-            <span className="muted">{mode === 'owner' ? 'Pemilik:' : mode === 'type' ? 'Jenis content:' : 'Status:'}</span>
+            <span className="muted">{mode === 'owner' ? 'Pemilik:' : mode === 'type' ? 'Jenis content:' : mode === 'account' ? 'Akaun:' : 'Status:'}</span>
             {legend.map((l) => <span key={l.key}><span className="dot" style={{ background: l.color }} />{l.label}</span>)}
             {mode === 'owner' && legend.length > PALETTE.length && <span className="muted">Staf ke-9 dan seterusnya berwarna kelabu.</span>}
           </div>

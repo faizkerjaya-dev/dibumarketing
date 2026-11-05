@@ -14,10 +14,12 @@ import { Modal, Button, Avatar, Select } from './ui';
 import { readLast } from './BriefDrawer';
 import { ContentStatusPill } from './pills';
 import { ProgressDots } from './Progress';
+import { accountOf, accountColor, accountLabel } from '../lib/social';
 
 export function colorFor(mode, c, { config, staffColor }) {
   if (c.isSlot) return OTHER;
   if (mode === 'owner') return staffColor[c.ownerStaffId] || OTHER;
+  if (mode === 'account') return accountColor(config, accountOf(config, c).id);
   if (mode === 'type') return typeColor(config, c.type);
   return TONE_FILL[findStatus(config, c.status).tone] || OTHER;
 }
@@ -29,6 +31,7 @@ export function breakdown(mode, list, { config, staffById, staffColor }) {
     let key; let label;
     if (mode === 'owner') { key = c.ownerStaffId || '-'; label = staffById[c.ownerStaffId]?.name || c.ownerName || 'Tiada pemilik'; }
     else if (mode === 'type') { key = c.type || '-'; label = c.type || 'Jenis belum ditetapkan'; }
+    else if (mode === 'account') { const a = accountOf(config, c); key = a.id; label = accountLabel(a); }
     else { const st = findStatus(config, c.status); key = st.key; label = st.label; }
     const cur = m.get(key) || { key, label, color: colorFor(mode, c, { config, staffColor }), n: 0 };
     cur.n += 1;
@@ -111,7 +114,7 @@ export default function DayModal({ day, items, postItems = [], mode, dateKey = '
           const ownerName = owner?.name || c.ownerName;
           return (
             <button
-              key={c.id}
+              key={c._key || c.id}
               type="button"
               className={`day-item${c.isSlot ? ' slot' : ''}`}
               style={{ '--bar': colorFor(mode, c, ctx) }}
@@ -124,7 +127,8 @@ export default function DayModal({ day, items, postItems = [], mode, dateKey = '
                 <span className="day-title">{c.isSlot ? (c.slotLabel || 'Slot kosong') : c.title}</span>
                 <span className="day-meta">
                   <span className="code-tag">{c.code}</span>
-                  {c.platform && <span className="tag">{c.platform}</span>}
+                  {c.platform && <span className="tag">{dateKey === 'shootDate' ? c.platform : accountLabel(accountOf(config, c))}</span>}
+                  {c._cross != null && <span className="muted">pos silang</span>}
                   {dateKey !== 'shootDate' && c.shootDate && <span className="muted">Shoot {fmtDate(c.shootDate)}</span>}
                   {dateKey === 'shootDate' && !c.isSlot && !c.shootDate && <span className="danger-text">Tarikh shoot belum ditetapkan</span>}
                   <span className="meta-dot"><span className="dot" style={{ background: typeColor(config, c.type) }} />{c.type || 'Jenis belum ditetapkan'}</span>

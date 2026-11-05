@@ -3,27 +3,30 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   LayoutDashboard, CalendarDays, Columns3, Users, Star, Megaphone, Link2, BarChart3, Settings, ListChecks,
-  PackageCheck, Bell, Plus, Menu, X, LogOut, ChevronsLeft, ChevronsRight, BadgeCheck, Target, TrendingUp,
+  PackageCheck, Bell, Plus, Menu, X, LogOut, ChevronsLeft, ChevronsRight, BadgeCheck, Target, TrendingUp, Gauge, Send, ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useConfig } from '../context/ConfigContext';
 import { can, isCreatorOnly } from '../lib/permissions';
 import { ROLES } from '../lib/constants';
-import { stageOf } from '../lib/statuses';
+import { postsOf, postState } from '../lib/social';
+import { stageOf, isArchived } from '../lib/statuses';
 import { allowedPages, REPORT_PAGES } from '../lib/access';
 import { fmtDateTime, today, addDays } from '../lib/dates';
 import { useNotifications } from '../hooks/useNotifications';
 import { Avatar, SearchInput } from './ui';
 
 // Menu sisi ikut akses halaman (Tetapan › Akses role). Laporan muncul jika mana-mana tab laporan dibenarkan.
-function navItems(profile, config, pendingApprovals) {
+function navItems(profile, config, pendingApprovals, postsDue = 0) {
   const ok = allowedPages(profile, config);
   const creatorOnly = isCreatorOnly(profile);
   const items = [
+    ok.has('control') && { to: '/control', label: 'Pusat kawalan', icon: Gauge },
     ok.has('dashboard') && { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     ok.has('mytasks') && (profile?.staffId || creatorOnly) && { to: '/my-tasks', label: creatorOnly ? 'Hari ini' : 'Tugasan saya', icon: ListChecks },
     ok.has('calendar') && { to: '/calendar', label: creatorOnly ? 'Kalendar saya' : 'Kalendar', icon: CalendarDays },
+    ok.has('posting') && { to: '/posting', label: 'Jadual pos', icon: Send, badge: postsDue },
     ok.has('pipeline') && { to: '/pipeline', label: 'Papan kerja', icon: Columns3 },
     ok.has('approvals') && { to: '/approvals', label: 'Kelulusan', icon: BadgeCheck, badge: pendingApprovals },
     ok.has('team') && { to: '/team', label: 'Pasukan', icon: Users },
@@ -33,6 +36,7 @@ function navItems(profile, config, pendingApprovals) {
     ok.has('library') && { to: '/library', label: 'Pustaka link', icon: Link2 },
     ok.has('kpi') && { to: '/kpi', label: 'KPI', icon: Target },
     ok.has('performance') && { to: '/performance', label: 'Prestasi content', icon: TrendingUp },
+    ok.has('report_monthly') && { to: '/monthly', label: 'Laporan bulanan', icon: ClipboardList },
     REPORT_PAGES.some((r) => ok.has(r.key)) && { to: '/analytics', label: 'Laporan', icon: BarChart3 },
     ok.has('settings') && { to: '/settings', label: 'Tetapan', icon: Settings },
   ];
@@ -158,7 +162,14 @@ export default function Layout() {
       return st === 'review' || (st === 'idea' && (c.publishDate || c.shootDate) && (c.shootDate || c.publishDate) <= soon);
     }).length;
   }, [content, config]);
-  const items = navItems(profile, config, can(profile, 'content.approve') ? pendingApprovals : 0);
+  // Lencana Jadual pos: pos hari ini yang sedia tetapi belum dipos.
+  const postsDue = useMemo(() => {
+    if (!can(profile, 'content.post')) return 0;
+    const t0 = today();
+    return content.filter((c) => !c.archived && !isArchived(config, c.status))
+      .flatMap((c) => postsOf(config, c)).filter((p) => p.date === t0 && postState(config, p) === 'ready').length;
+  }, [content, config, profile]);
+  const items = navItems(profile, config, can(profile, 'content.approve') ? pendingApprovals : 0, postsDue);
   const creatorOnly = isCreatorOnly(profile);
   const dataErrors = Object.entries(errors).filter(([, e]) => e);
 

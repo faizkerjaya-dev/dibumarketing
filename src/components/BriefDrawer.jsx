@@ -14,6 +14,7 @@ import { missingForStatus, FIELD_LABELS } from '../lib/workflow';
 import { AppError } from '../lib/errors';
 import { TASK_ROLES, PRIORITIES } from '../lib/constants';
 import { typeColor } from '../lib/colors';
+import { accountsOf, accountOf, accountById, accountLabel, accountColor } from '../lib/social';
 import { today, daysBetween } from '../lib/dates';
 import { Button, Field, Input, Select, Textarea } from './ui';
 
@@ -56,7 +57,8 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
       product: base.product || '',
       campaignId: base.campaignId || preset.campaignId || '',
       priority: base.priority || 'medium',
-      publishAccount: base.publishAccount || '',
+      publishAccount: content ? accountOf(config, base).id : (preset.platform ? (accountsOf(config).find((a) => a.platform === preset.platform)?.id || '') : (last.account || accountsOf(config).find((a) => a.platform === (last.platform || config.platforms[0]))?.id || '')),
+      crossIds: (base.crossPosts || []).map((x) => x.accountId),
       status: base.status || preset.status || statusForStage(config, 'idea'),
       brief: { ...EMPTY_BRIEF, ...(base.brief || {}) },
     });
@@ -74,10 +76,11 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
     setBusy(true);
     const ok = await run(async () => {
       const payload = {
-        title: f.title, platform: f.platform, publishDate: f.publishDate, publishTime: f.publishTime, shootDate: f.shootDate || '',
+        title: f.title, platform: accountById(config, f.publishAccount)?.platform || f.platform, publishDate: f.publishDate, publishTime: f.publishTime, shootDate: f.shootDate || '',
         ownerStaffId: f.ownerStaffId, pillar: f.pillar, product: f.product, campaignId: f.campaignId,
         campaignName: campaigns.find((c) => c.id === f.campaignId)?.name || '',
         priority: f.priority, type: f.type, publishAccount: f.publishAccount, status: f.status,
+        crossPosts: f.crossIds.filter((id) => id !== f.publishAccount).map((id) => (content?.crossPosts || []).find((x) => x.accountId === id) || { accountId: id, date: '', time: '', url: '', postedAt: null, postedBy: '' }),
         brief: f.brief,
       };
       // Syarat aliran kerja yang sama seperti Papan kerja: contohnya status Terbit perlukan link post.
@@ -95,7 +98,7 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
       if (task.staffId) {
         await saveTask({ ...task, contentId: id, priority: f.priority, description: f.brief.topic || '' }, { profile, staffById, contentById });
       }
-      writeLast({ platform: f.platform, ownerStaffId: f.ownerStaffId, type: f.type });
+      writeLast({ platform: f.platform, account: f.publishAccount, ownerStaffId: f.ownerStaffId, type: f.type });
       return id;
     }, content ? 'Content dikemas kini' : 'Content ditambah');
     setBusy(false);
@@ -139,13 +142,29 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
             {mode === 'full' && <Field label="Masa pos"><Input type="time" value={f.publishTime} onChange={set('publishTime')} /></Field>}
           </div>
 
-          <Field label="Platform" group>
+          <Field label="Akaun pos utama" group>
             <div className="chips">
-              {config.platforms.map((p) => (
-                <button key={p} type="button" className={`chip${f.platform === p ? ' on' : ''}`} onClick={() => setF((x) => ({ ...x, platform: p }))}>{p}</button>
+              {accountsOf(config).map((a) => (
+                <button key={a.id} type="button" className={`chip${f.publishAccount === a.id ? ' on' : ''}`} onClick={() => setF((x) => ({ ...x, publishAccount: a.id, platform: a.platform, crossIds: x.crossIds.filter((id) => id !== a.id) }))}>
+                  <span className="dot" style={{ background: accountColor(config, a.id) }} />{accountLabel(a)}
+                </button>
               ))}
             </div>
           </Field>
+          {accountsOf(config).length > 1 && (
+            <Field label="Pos juga ke (pilihan)" hint="Video yang sama dipos semula ke akaun lain. Setiap akaun ditanda dipos secara berasingan dalam Jadual pos." group>
+              <div className="chips">
+                {accountsOf(config).filter((a) => a.id !== f.publishAccount).map((a) => {
+                  const on = f.crossIds.includes(a.id);
+                  return (
+                    <button key={a.id} type="button" aria-pressed={on} className={`chip${on ? ' on' : ''}`} onClick={() => setF((x) => ({ ...x, crossIds: on ? x.crossIds.filter((id) => id !== a.id) : [...x.crossIds, a.id] }))}>
+                      {on ? '✓ ' : '+ '}{accountLabel(a)}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+          )}
 
           <Field label="Jenis content" group>
             <div className="chips">
@@ -202,7 +221,6 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
                   <Field label="Kempen"><Select value={f.campaignId} onChange={set('campaignId')} options={campaigns.filter((c) => c.status !== 'archived').map((c) => ({ value: c.id, label: c.name }))} placeholder="Tiada kempen" /></Field>
                   <Field label="Keutamaan"><Select value={f.priority} onChange={set('priority')} options={PRIORITIES} /></Field>
                   <Field label="Status"><Select value={f.status} onChange={set('status')} options={statusList(config)} /></Field>
-                  <Field label="Akaun terbit"><Input value={f.publishAccount} onChange={set('publishAccount')} placeholder="Akaun utama Dibu" /></Field>
                   <Field label="Caption" full><Textarea rows={3} value={f.brief.caption} onChange={setBrief('caption')} /></Field>
                   <Field label="Hashtag" full><Input value={f.brief.hashtags} onChange={setBrief('hashtags')} placeholder="#makananbayi #mpasi" /></Field>
                   <Field label="Call to action" full><Input value={f.brief.cta} onChange={setBrief('cta')} /></Field>
