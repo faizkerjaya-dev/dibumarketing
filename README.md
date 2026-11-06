@@ -279,3 +279,4 @@ Email dipadankan dengan email dalam profil staf (Pasukan) atau email akaun log m
 - **Tarikh dipos** lalai = tarikh jadual bila menanda pos yang sudah lepas.
 - **Link post dan masa dipos tidak wajib** semasa tanda dipos. Pos tanpa link muncul dalam kotak "Masukkan link post segera" (Jadual pos), Pusat kawalan dan lencana menu.
 - Butang **"Sudah dijadual dalam app"** untuk pos malam / hujung minggu yang dijadualkan dalam TikTok / Meta Business Suite.
+- **Tugasan basi ditutup automatik** (v3.6.3): bila pengurus membuka sistem, tugasan bagi content yang sudah dipadam dibuang; tugasan bagi content yang diarkib, sudah dishoot / diedit / dipos ditanda Siap (sejarah: "Ditutup automatik"). Ini membetulkan kiraan Lewat dalam Pasukan › Beban kerja dan profil staf.

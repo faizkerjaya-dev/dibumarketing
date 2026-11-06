@@ -879,3 +879,40 @@ export async function setPostTiming(post, timing, profile) {
   }
   await logActivity(profile, { type: 'post_timing', message: `${by(profile)} laras status pos “${c.title}” → ${timing === 'ontime' ? 'Tepat masa' : timing === 'late' ? 'Lewat' : 'Auto'}`, refType: 'content', refId: c.id });
 }
+
+/* ---------------- Tutup tugasan basi secara automatik ---------------- */
+
+// Langkah mana yang menutup setiap jenis tugasan.
+const ROLE_STEP = { script: 'shot', shooting: 'shot', editing: 'edited', design: 'edited', caption: 'edited', publishing: 'posted' };
+
+// Dipanggil oleh pengurus (DataContext). Membetulkan tugasan yang masih "Belum mula / lewat"
+// walaupun kerjanya sudah selesai:
+//   - content sudah dipadam              → tugasan dipadam
+//   - content diarkib                    → tugasan ditutup (Siap)
+//   - langkah content sudah siap         → tugasan ditutup (contoh Shooting bila Siap shoot,
+//                                          semua tugasan bila content sudah Terbit)
+export async function syncStaleTasks(tasks, contentById, config, { progressOf, isArchivedStatus }) {
+  const at = nowIso();
+  const del = []; const close = [];
+  tasks.forEach((t) => {
+    if (!t.contentId || t.status === 'done') return;
+    const c = contentById[t.contentId];
+    if (!c) { del.push({ t }); return; }
+    if (c.archived || isArchivedStatus(c.status)) { close.push({ t, why: 'content diarkib' }); return; }
+    const pr = progressOf(config, c);
+    const step = ROLE_STEP[t.role];
+    if (pr.posted) close.push({ t, why: 'content sudah dipos' });
+    else if (step && pr[step]) close.push({ t, why: step === 'shot' ? 'content sudah dishoot' : 'content sudah diedit' });
+  });
+  if (!del.length && !close.length) return 0;
+  await commitInChunks([...del.map((x) => ({ ...x, del: true })), ...close], (batch, x) => {
+    if (x.del) { batch.delete(doc(db, 'tasks', x.t.id)); return; }
+    batch.update(doc(db, 'tasks', x.t.id), {
+      status: 'done', completedAt: today(),
+      history: [...(x.t.history || []), { at, by: 'Sistem', text: `Ditutup automatik: ${x.why}` }],
+      updatedAt: serverTimestamp(), updatedBy: 'Sistem',
+    });
+  });
+  log.info('stale tasks', { deleted: del.length, closed: close.length });
+  return del.length + close.length;
+}

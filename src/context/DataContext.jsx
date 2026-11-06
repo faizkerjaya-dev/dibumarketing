@@ -6,7 +6,10 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 import { isCreatorOnly, can } from '../lib/permissions';
-import { syncOwnerUids } from '../lib/db';
+import { syncOwnerUids, syncStaleTasks } from '../lib/db';
+import { useConfig } from './ConfigContext';
+import { progressOf } from '../lib/progress';
+import { isArchived } from '../lib/statuses';
 import { log } from '../lib/log';
 import { staffColorMap } from '../lib/colors';
 
@@ -15,6 +18,7 @@ const NAMES = ['content', 'tasks', 'staff', 'campaigns', 'creators', 'campaignCr
 
 export function DataProvider({ children }) {
   const { profile } = useAuth();
+  const config = useConfig();
   const [data, setData] = useState(() => Object.fromEntries(NAMES.map((n) => [n, []])));
   const [loading, setLoading] = useState(() => Object.fromEntries(NAMES.map((n) => [n, true])));
   const [errors, setErrors] = useState({});
@@ -63,10 +67,17 @@ export function DataProvider({ children }) {
         const map = Object.fromEntries(data.staff.map((s) => [s.id, s]));
         await syncOwnerUids(data.content, map);
       } catch (e) { log.warn('ownerUid sync gagal', e); }
+      try {
+        // Hanya bila senarai content penuh sudah dimuat (pengurus), supaya tiada tugasan dipadam tersilap.
+        if (!loading.tasks && data.content.length) {
+          const byId = Object.fromEntries(data.content.map((c) => [c.id, c]));
+          await syncStaleTasks(data.tasks, byId, config, { progressOf, isArchivedStatus: (st) => isArchived(config, st) });
+        }
+      } catch (e) { log.warn('tugasan sync gagal', e); }
       fixing.current = false;
     }, 1500);
     return () => clearTimeout(t);
-  }, [canFix, data.content, data.staff, loading.content, loading.staff]);
+  }, [canFix, data.content, data.staff, data.tasks, loading.content, loading.staff, loading.tasks, config]);
 
   const value = useMemo(() => {
     const byId = (list) => Object.fromEntries(list.map((x) => [x.id, x]));
