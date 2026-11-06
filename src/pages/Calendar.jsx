@@ -22,10 +22,12 @@ import { ContentStatusPill } from '../components/pills';
 import ContentFilters, { EMPTY_FILTERS, applyFilters } from '../components/ContentFilters';
 import BriefDrawer, { readLast } from '../components/BriefDrawer';
 import { QuickPlanModal, BulkFillModal } from '../components/SlotPlanModal';
-import DayModal, { colorFor, breakdown } from '../components/DayModal';
+import DayModal, { colorFor } from '../components/DayModal';
 import { ProgressDots } from '../components/Progress';
 import { progressOf } from '../lib/progress';
-import { expandCrossPosts, accountsOf, accountColor, accountLabel, rescheduleFields } from '../lib/social';
+import { expandCrossPosts, accountsOf, accountColor, accountLabel, rescheduleFields, platformOfItem, platformOrder, platformStyle } from '../lib/social';
+import PlatformBadge from '../components/PlatformBadge';
+import { stageOf } from '../lib/statuses';
 import { usePersistentState } from '../hooks/usePersistentState';
 
 const WEEKDAYS = ['Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab', 'Ahd'];
@@ -42,6 +44,7 @@ export default function CalendarPage() {
   const [confirm, confirmEl] = useConfirm();
 
   const [view, setView] = usePersistentState('cal_view', 'month');
+  const [platTab, setPlatTab] = usePersistentState('cal_platform', '');
   // Social Media Manager: lalai ikut tarikh POS dan warna ikut AKAUN (jika belum pernah dipilih).
   const smm = hasRole(profile, 'social_media_manager');
   const [mode, setMode] = useState(() => { try { return localStorage.getItem(MODE_KEY) || (smm ? 'account' : 'status'); } catch { return 'status'; } });
@@ -77,7 +80,9 @@ export default function CalendarPage() {
 
   const live = useMemo(() => content.filter((c) => !c.archived && !isArchived(config, c.status)), [content, config]);
   // Mod Pos: setiap pos silang (IG, FB, Threads…) dipaparkan sebagai item sendiri pada tarikhnya.
-  const items = useMemo(() => applyFilters(isShoot ? live : expandCrossPosts(config, live), filters), [live, filters, isShoot, config]);
+  const allItems = useMemo(() => applyFilters(isShoot ? live : expandCrossPosts(config, live), filters), [live, filters, isShoot, config]);
+  // Tab platform: tunjuk satu platform sahaja (TikTok, Instagram…).
+  const items = useMemo(() => (platTab ? allItems.filter((c) => platformOfItem(config, c) === platTab) : allItems), [allItems, platTab, config]);
   const byDay = useMemo(() => {
     const m = {};
     items.forEach((c) => { const d = isShoot ? c.shootDate || c.publishDate : c[dk]; if (d) (m[d] = m[d] || []).push(c); });
@@ -100,7 +105,7 @@ export default function CalendarPage() {
 
   let days = [];
   let title = '';
-  if (view === 'week') {
+  if (view === 'week' || view === 'lanes') {
     const s = startOfWeek(anchor);
     days = Array.from({ length: 7 }, (_, i) => addDays(s, i));
     title = `${fmtDate(days[0])} – ${fmtDate(days[6], { year: 'numeric' })}`;
@@ -114,7 +119,7 @@ export default function CalendarPage() {
   const t0 = today();
 
   const shift = (dir) => {
-    if (view === 'week') setAnchor(addDays(anchor, 7 * dir));
+    if (view === 'week' || view === 'lanes') setAnchor(addDays(anchor, 7 * dir));
     else setAnchor(toISODate(new Date(a.getFullYear(), a.getMonth() + dir, 1)));
   };
 
@@ -180,14 +185,25 @@ export default function CalendarPage() {
     onDrop: (e) => { e.preventDefault(); drop(day); },
   });
 
+  // Kiraan ikut platform bagi satu senarai content (untuk sel kalendar).
+  const platRows = (list, day) => {
+    const order = platformOrder(config);
+    const m = new Map();
+    list.forEach((c) => {
+      const p = platformOfItem(config, c);
+      const r = m.get(p) || { platform: p, n: 0, done: 0, late: 0 };
+      const ok = progressOf(config, c)[isShoot ? 'shot' : 'posted'];
+      r.n += 1; if (ok) r.done += 1;
+      if (!ok && (c[dk] || day) < t0) r.late += 1;
+      m.set(p, r);
+    });
+    return [...m.values()].sort((a, b) => (order.indexOf(a.platform) + 99 * (order.indexOf(a.platform) < 0)) - (order.indexOf(b.platform) + 99 * (order.indexOf(b.platform) < 0)));
+  };
+
   const monthCell = (day) => {
     const list = byDay[day] || [];
     const real = list.filter((c) => !c.isSlot);
     const slots = list.length - real.length;
-    const parts = breakdown(mode, real, ctx);
-    const stepKey = isShoot ? 'shot' : 'posted';
-    const doneN = real.filter((c) => progressOf(config, c)[stepKey]).length;
-    const late = day < t0 ? real.length - doneN : 0;
     const out = parseDate(day).getMonth() !== month;
     return (
       <button
@@ -198,24 +214,23 @@ export default function CalendarPage() {
         aria-label={`${fmtDate(day, { weekday: 'long' })}: ${real.length} ${isShoot ? 'shoot' : 'content'}${slots ? `, ${slots} slot` : ''}${isShoot && postByDay[day]?.length ? `, ${postByDay[day].length} perlu dipos` : ''}`}
         {...dropProps(day)}
       >
-        <span className={`cal-num${day === t0 ? ' today' : ''}`}>{parseDate(day).getDate()}</span>
+        <span className="cal-top">
+          <span className={`cal-num${day === t0 ? ' today' : ''}`}>{parseDate(day).getDate()}</span>
+          {real.length > 0 && <span className="cal-total">{real.length} {isShoot ? 'shoot' : 'pos'}</span>}
+        </span>
         {real.length > 0 && (
-          <span className="cal-count">
-            <strong>{real.length}</strong>
-            <span>{isShoot ? 'shoot' : 'pos'}</span>
+          <span className="cal-plats">
+            {platRows(real).map((r) => (
+              <span key={r.platform} className="cal-plat" style={{ background: platformStyle(r.platform).tint }} title={`${r.platform}: ${r.n} ${isShoot ? 'shoot' : 'pos'}${r.done ? `, ${r.done} siap` : ''}${r.late ? `, ${r.late} lewat` : ''}`}>
+                <PlatformBadge platform={r.platform} size={18} />
+                <strong>{r.n}</strong>
+                {r.late > 0 ? <span className="st bad">{r.late} lewat</span> : r.done > 0 ? <span className="st ok">✓ {r.done}/{r.n}</span> : null}
+              </span>
+            ))}
           </span>
         )}
         {isShoot && (postByDay[day] || []).length > 0 && <span className="cal-postline">{postByDay[day].length} perlu dipos</span>}
-        {real.length > 0 && (
-          <span className="cal-bar" title={parts.map((p) => `${p.label}: ${p.n}`).join('\n')}>
-            {parts.map((p) => <span key={p.key} style={{ flex: p.n, background: p.color }} />)}
-          </span>
-        )}
-        <span className="cal-flags">
-          {late > 0 && <span className="cal-flag late">{late} lewat</span>}
-          {real.length > 0 && doneN > 0 && <span className="cal-flag done" title={isShoot ? 'Sudah dishoot' : 'Sudah dipos'}>✓ {doneN}/{real.length}</span>}
-          {slots > 0 && <span className="cal-flag slot">{slots} slot</span>}
-        </span>
+        {slots > 0 && <span className="cal-flags"><span className="cal-flag slot">{slots} slot</span></span>}
         {canCreate && !list.length && <span className="cal-hint"><Plus size={12} />Tambah</span>}
       </button>
     );
@@ -274,10 +289,23 @@ export default function CalendarPage() {
         <Segmented value={dk} onChange={setDk} options={[{ key: 'shootDate', label: 'Shoot' }, { key: 'publishDate', label: 'Pos' }]} />
         <span className="small muted">Warna ikut</span>
         <Segmented value={mode} onChange={setMode} options={[{ key: 'status', label: 'Status' }, { key: 'type', label: 'Jenis' }, { key: 'owner', label: 'Pemilik' }, { key: 'account', label: 'Akaun' }]} />
-        <Segmented value={view} onChange={setView} options={[{ key: 'month', label: 'Bulan' }, { key: 'week', label: 'Minggu' }, { key: 'list', label: 'Senarai' }]} />
+        <Segmented value={view} onChange={setView} options={[{ key: 'month', label: 'Bulan' }, { key: 'week', label: 'Minggu' }, { key: 'lanes', label: 'Minggu ikut platform' }, { key: 'list', label: 'Senarai' }]} />
       </div>
 
       {!creatorOnly && <ContentFilters value={filters} onChange={setFilters} />}
+
+      <div className="plat-tabs" role="tablist" aria-label="Platform">
+        {[{ key: '', label: 'Semua platform' }, ...platformOrder(config).map((p) => ({ key: p, label: p }))].map((t) => {
+          const n = allItems.filter((c) => !c.isSlot && c[dk] >= monthFrom && c[dk] <= monthTo && (!t.key || platformOfItem(config, c) === t.key)).length;
+          if (t.key && !n && platTab !== t.key) return null;
+          return (
+            <button key={t.key || 'all'} type="button" role="tab" aria-selected={platTab === t.key} className={`plat-tab${platTab === t.key ? ' on' : ''}`} onClick={() => setPlatTab(t.key)}>
+              {t.key ? <PlatformBadge platform={t.key} size={22} /> : <span className="pbadge" style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--surface-3)', color: 'var(--text-2)', fontSize: 11 }}>∑</span>}
+              {t.label}<span className="n">{n}</span>
+            </button>
+          );
+        })}
+      </div>
 
       <div className="split">
         <div className="main" style={{ flex: '1 1 640px' }}>
@@ -312,6 +340,58 @@ export default function CalendarPage() {
             </div>
           )}
 
+          {view === 'lanes' && (() => {
+            const order = platformOrder(config);
+            const inWeek = days.flatMap((d) => (byDay[d] || []).filter((c) => !c.isSlot));
+            const lanes = order.filter((p) => inWeek.some((c) => platformOfItem(config, c) === p));
+            inWeek.forEach((c) => { const p = platformOfItem(config, c); if (!lanes.includes(p)) lanes.push(p); });
+            const statusOf = (c, day) => {
+              const pr = progressOf(config, c);
+              if (pr[isShoot ? 'shot' : 'posted']) return { t: isShoot ? '✓ Shoot' : '✓ Dipos', cls: 'ok-text', bar: 'var(--green-fill)' };
+              if (day < t0) return { t: 'Lewat', cls: 'danger-text', bar: 'var(--red-fill)' };
+              const st = stageOf(config, c.status);
+              if (!isShoot && st === 'ready') return { t: 'Sedia', cls: 'strong', bar: 'var(--teal-fill)' };
+              if (st === 'review') return { t: 'Tunggu lulus', cls: 'warn-text', bar: 'var(--amber-fill)' };
+              return { t: st === 'idea' ? 'Idea' : 'Produksi', cls: 'muted', bar: 'var(--border-2)' };
+            };
+            if (!lanes.length) return <Card><Empty title="Tiada content minggu ini" text="Tukar minggu atau pilih Semua platform." /></Card>;
+            return (
+              <div className="lanes">
+                <div className="lanes-grid">
+                  <span className="lh">PLATFORM</span>
+                  {days.map((d, i) => <span key={d} className={`lh${d === t0 ? ' is-today' : ''}`}>{WEEKDAYS[i]} {parseDate(d).getDate()}{d === t0 ? ' · Hari ini' : ''}</span>)}
+                  {lanes.map((p) => {
+                    const all = inWeek.filter((c) => platformOfItem(config, c) === p);
+                    const done = all.filter((c) => progressOf(config, c)[isShoot ? 'shot' : 'posted']).length;
+                    return [
+                      <span key={`${p}-n`} className="lane-name" style={{ background: platformStyle(p).tint }}>
+                        <PlatformBadge platform={p} size={26} />
+                        <span><strong>{p}</strong><small>{all.length} {isShoot ? 'shoot' : 'pos'} · {done} siap</small></span>
+                      </span>,
+                      ...days.map((day) => (
+                        <span key={`${p}-${day}`} className={`lane-cell${day === t0 ? ' today' : ''}${dropDay === day ? ' drop' : ''}`} {...dropProps(day)}>
+                          {(byDay[day] || []).filter((c) => !c.isSlot && platformOfItem(config, c) === p).map((c) => {
+                            const st = statusOf(c, day);
+                            const ownerName = staffById[c.ownerStaffId]?.name || c.ownerName || '';
+                            return (
+                              <button key={c._key || c.id} type="button" className="lane-card" style={{ '--bar': st.bar }}
+                                draggable={canEdit && c._cross == null} onDragStart={() => setDrag({ id: c.id })} onDragEnd={() => setDrag(null)}
+                                onClick={() => navigate(`/content/${c.id}`)} title={c.title}>
+                                <span className="top"><strong>{(isShoot ? '' : c.publishTime) || '—'}</strong><span className={st.cls}>{st.t}</span></span>
+                                <span className="t">{c.title}</span>
+                                <span className="m">{c.code}{ownerName ? ` · ${ownerName.split(' ')[0]}` : ''}{c._cross != null ? ' · silang' : ''}</span>
+                              </button>
+                            );
+                          })}
+                        </span>
+                      )),
+                    ];
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {view === 'list' && (
             <Card>
               {(() => {
@@ -345,7 +425,7 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {!creatorOnly && (
+        {!creatorOnly && view !== 'lanes' && (
           <div className="side" style={{ flex: '0 1 300px' }}>
             <Card title="Bank idea" subtitle="Tulis idea bila terlintas. Seret ke tarikh bila nak jadualkan." actions={<Pill>{ideas.length}</Pill>}>
               {canCreate && (

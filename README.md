@@ -280,3 +280,10 @@ Email dipadankan dengan email dalam profil staf (Pasukan) atau email akaun log m
 - **Link post dan masa dipos tidak wajib** semasa tanda dipos. Pos tanpa link muncul dalam kotak "Masukkan link post segera" (Jadual pos), Pusat kawalan dan lencana menu.
 - Butang **"Sudah dijadual dalam app"** untuk pos malam / hujung minggu yang dijadualkan dalam TikTok / Meta Business Suite.
 - **Tugasan basi ditutup automatik** (v3.6.3): bila pengurus membuka sistem, tugasan bagi content yang sudah dipadam dibuang; tugasan bagi content yang diarkib, sudah dishoot / diedit / dipos ditanda Siap (sejarah: "Ditutup automatik"). Ini membetulkan kiraan Lewat dalam Pasukan › Beban kerja dan profil staf.
+
+### Kalendar ikut platform (v3.7)
+- Tab platform di atas kalendar (Semua / TikTok / Instagram / Facebook / Threads …) dengan bilangan bulan ini; pilihan diingat.
+- Setiap hari dalam paparan bulan dipecah satu baris bagi setiap platform: lencana warna rasmi, bilangan, ✓ siap / lewat.
+- Popup hari dikumpul ikut platform (chip ringkasan + kotak setiap platform, disusun ikut masa).
+- Paparan baharu **Minggu ikut platform**: satu lorong bagi setiap platform; seret kad untuk tukar tarikh.
+- Warna akaun kini ikut warna rasmi platform (`PLATFORM_STYLES` dalam `src/lib/social.js`).

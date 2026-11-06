@@ -29,9 +29,41 @@ export function accountOf(config, c) {
     || { id: '-', platform: c?.platform || '', name: c?.platform || 'Tiada akaun' };
 }
 
+// Warna rasmi setiap platform (lencana + jalur). Platform lain guna palet aplikasi.
+export const PLATFORM_STYLES = {
+  tiktok: { code: 'TT', bg: '#000000', ink: '#25F4EE', ring: '#000000', shadow: '1px 1px 0 #FE2C55', bar: '#FE2C55', tint: '#F3F3F3' },
+  instagram: { code: 'IG', bg: 'linear-gradient(45deg, #FEDA75, #FA7E1E, #D62976, #962FBF, #4F5BD5)', ink: '#FFFFFF', ring: 'transparent', shadow: 'none', bar: '#D62976', tint: '#FCEEF5' },
+  facebook: { code: 'FB', bg: '#1877F2', ink: '#FFFFFF', ring: 'transparent', shadow: 'none', bar: '#1877F2', tint: '#EBF3FE' },
+  threads: { code: 'TH', bg: '#FFFFFF', ink: '#000000', ring: '#000000', shadow: 'none', bar: '#000000', tint: '#F5F5F4' },
+  youtube: { code: 'YT', bg: '#FF0000', ink: '#FFFFFF', ring: 'transparent', shadow: 'none', bar: '#FF0000', tint: '#FDECEC' },
+  x: { code: 'X', bg: '#000000', ink: '#FFFFFF', ring: 'transparent', shadow: 'none', bar: '#44403C', tint: '#F3F3F3' },
+  linkedin: { code: 'IN', bg: '#0A66C2', ink: '#FFFFFF', ring: 'transparent', shadow: 'none', bar: '#0A66C2', tint: '#EAF2FB' },
+  shopee: { code: 'SP', bg: '#EE4D2D', ink: '#FFFFFF', ring: 'transparent', shadow: 'none', bar: '#EE4D2D', tint: '#FDEFEB' },
+  lemon8: { code: 'L8', bg: '#FFE500', ink: '#1C1917', ring: 'transparent', shadow: 'none', bar: '#D4BE00', tint: '#FFFBE0' },
+};
+export function platformStyle(platform) {
+  const k = String(platform || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const hit = PLATFORM_STYLES[k] || Object.entries(PLATFORM_STYLES).find(([key]) => k.startsWith(key))?.[1];
+  if (hit) return hit;
+  let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const col = k ? PALETTE[h % PALETTE.length] : OTHER;
+  return { code: (platform || '?').slice(0, 2).toUpperCase(), bg: col, ink: '#FFFFFF', ring: 'transparent', shadow: 'none', bar: col, tint: '#F4F2ED' };
+}
+
 export function accountColor(config, id) {
-  const i = accountsOf(config).findIndex((a) => a.id === id);
-  return i >= 0 && i < PALETTE.length ? PALETTE[i] : OTHER;
+  const a = accountsOf(config).find((x) => x.id === id);
+  return a ? platformStyle(a.platform).bar : OTHER;
+}
+
+// Platform bagi item kalendar (akaun pos utama / silang).
+export const platformOfItem = (config, c) => accountOf(config, c).platform || c.platform || 'Tiada platform';
+
+// Susunan platform: ikut senarai akaun, kemudian selebihnya.
+export function platformOrder(config) {
+  const out = [];
+  accountsOf(config).forEach((a) => { if (a.platform && !out.includes(a.platform)) out.push(a.platform); });
+  (config?.platforms || []).forEach((p) => { if (!out.includes(p)) out.push(p); });
+  return out;
 }
 
 export const accountLabel = (a) => (a ? (a.handle ? `${a.platform} ${a.handle}` : a.name) : 'Tiada akaun');

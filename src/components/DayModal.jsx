@@ -14,7 +14,9 @@ import { Modal, Button, Avatar, Select } from './ui';
 import { readLast } from './BriefDrawer';
 import { ContentStatusPill } from './pills';
 import { ProgressDots } from './Progress';
-import { accountOf, accountColor, accountLabel } from '../lib/social';
+import { accountOf, accountColor, accountLabel, platformOfItem, platformOrder, platformStyle } from '../lib/social';
+import PlatformBadge from './PlatformBadge';
+import { progressOf } from '../lib/progress';
 
 export function colorFor(mode, c, { config, staffColor }) {
   if (c.isSlot) return OTHER;
@@ -58,8 +60,20 @@ export default function DayModal({ day, items, postItems = [], mode, dateKey = '
   if (!day) return null;
   const real = items.filter((c) => !c.isSlot);
   const slots = items.filter((c) => c.isSlot);
-  const parts = breakdown(mode, items, { config, staffById, staffColor });
   const ctx = { config, staffColor };
+  // Kumpul ikut platform supaya TikTok, Instagram, Threads… tidak bercampur.
+  const order = platformOrder(config);
+  const rank = (p) => { const i = order.indexOf(p); return i < 0 ? 99 : i; };
+  const groupBy = (list) => {
+    const m = new Map();
+    list.forEach((c) => { const p = platformOfItem(config, c); m.set(p, [...(m.get(p) || []), c]); });
+    return [...m.entries()].sort((a, b) => rank(a[0]) - rank(b[0]))
+      .map(([platform, l]) => [platform, [...l].sort((x, y) => (x.publishTime || '99').localeCompare(y.publishTime || '99'))]);
+  };
+  const stepKey = dateKey === 'shootDate' ? 'shot' : 'posted';
+  const groups = groupBy(items);
+  const doneOf = (l) => l.filter((c) => !c.isSlot && progressOf(config, c)[stepKey]).length;
+  const goto = (p) => document.getElementById(`dp-${p}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const submit = async () => {
     const t = title.trim();
@@ -83,8 +97,17 @@ export default function DayModal({ day, items, postItems = [], mode, dateKey = '
         <strong>{real.length} content {dateKey === 'shootDate' ? 'untuk dishoot' : 'dipos'}</strong>
         {slots.length > 0 && <span className="muted">· {slots.length} slot belum ada tajuk</span>}
         <span className="grow" />
-        {parts.map((p) => <span key={p.key} className="legend-chip"><span className="dot" style={{ background: p.color }} />{p.label} <strong>{p.n}</strong></span>)}
       </div>
+      {groups.length > 1 && (
+        <div className="day-plat-chips">
+          {groups.map(([p, l]) => (
+            <button key={p} type="button" className="day-plat-chip" onClick={() => goto(p)}>
+              <PlatformBadge platform={p} size={22} />{p} <strong>{l.filter((c) => !c.isSlot).length}</strong>
+              {doneOf(l) > 0 && <span className="ok">✓ {doneOf(l)}</span>}
+            </button>
+          ))}
+        </div>
+      )}
 
       {canCreate && (
         <div className="day-add">
@@ -108,8 +131,19 @@ export default function DayModal({ day, items, postItems = [], mode, dateKey = '
       )}
 
       {!items.length && <p className="muted small">Tiada content pada hari ini.</p>}
-      <div className="day-list">
-        {items.map((c) => {
+      <div className="col gap">
+        {groups.map(([platform, list]) => {
+          const real2 = list.filter((c) => !c.isSlot);
+          const d = doneOf(list);
+          return (
+            <section key={platform} id={`dp-${platform}`} className="day-plat" aria-label={platform}>
+              <div className="day-plat-head" style={{ background: platformStyle(platform).tint }}>
+                <PlatformBadge platform={platform} size={26} />
+                <strong>{platform}</strong>
+                <span className="sum">{real2.length} {dateKey === 'shootDate' ? 'shoot' : 'pos'}{d ? ` · ${d} sudah` : ''}{real2.length - d > 0 ? ` · ${real2.length - d} belum` : ''}{list.length > real2.length ? ` · ${list.length - real2.length} slot` : ''}</span>
+              </div>
+              <div className="day-list">
+                {list.map((c) => {
           const owner = staffById[c.ownerStaffId];
           const ownerName = owner?.name || c.ownerName;
           return (
@@ -142,6 +176,10 @@ export default function DayModal({ day, items, postItems = [], mode, dateKey = '
             </button>
           );
         })}
+              </div>
+            </section>
+          );
+        })}
       </div>
 
       {dateKey === 'shootDate' && (
@@ -151,7 +189,10 @@ export default function DayModal({ day, items, postItems = [], mode, dateKey = '
             <span className="small muted">Video yang sudah dishoot sebelum ini, ikut ID content</span>
           </div>
           {!postItems.length && <p className="muted small">Tiada content dijadualkan untuk dipos pada hari ini.</p>}
-          {postItems.map((c) => {
+          {groupBy(postItems).map(([platform, plist]) => (
+            <div key={platform} className="col gap-xs">
+              <span className="row gap-xs small strong" style={{ marginTop: 6 }}><PlatformBadge platform={platform} size={18} />{platform} · {plist.length}</span>
+              {plist.map((c) => {
             const ownerName = staffById[c.ownerStaffId]?.name || c.ownerName;
             return (
               <button key={c.id} type="button" className="post-row" onClick={() => navigate(`/content/${c.id}`)}>
@@ -170,6 +211,8 @@ export default function DayModal({ day, items, postItems = [], mode, dateKey = '
               </button>
             );
           })}
+            </div>
+          ))}
         </div>
       )}
     </Modal>
