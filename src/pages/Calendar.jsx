@@ -296,8 +296,13 @@ export default function CalendarPage() {
 
       <div className="plat-tabs" role="tablist" aria-label="Platform">
         {[{ key: '', label: 'Semua platform' }, ...platformOrder(config).map((p) => ({ key: p, label: p }))].map((t) => {
-          const n = allItems.filter((c) => !c.isSlot && c[dk] >= monthFrom && c[dk] <= monthTo && (!t.key || platformOfItem(config, c) === t.key)).length;
-          if (t.key && !n && platTab !== t.key) return null;
+          // Kira ikut tarikh yang sama dengan sel kalendar (mod Shoot: tarikh shoot, jika tiada tarikh pos).
+          const n = allItems.filter((c) => {
+            const d = isShoot ? c.shootDate || c.publishDate : c[dk];
+            return !c.isSlot && d >= monthFrom && d <= monthTo && (!t.key || platformOfItem(config, c) === t.key);
+          }).length;
+          // Platform akaun sentiasa ditunjuk (walaupun 0); platform lain hanya jika ada content.
+          if (t.key && !n && platTab !== t.key && !accountsOf(config).some((x) => x.platform === t.key)) return null;
           return (
             <button key={t.key || 'all'} type="button" role="tab" aria-selected={platTab === t.key} className={`plat-tab${platTab === t.key ? ' on' : ''}`} onClick={() => setPlatTab(t.key)}>
               {t.key ? <PlatformBadge platform={t.key} size={22} /> : <span className="pbadge" style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--surface-3)', color: 'var(--text-2)', fontSize: 11 }}>∑</span>}
