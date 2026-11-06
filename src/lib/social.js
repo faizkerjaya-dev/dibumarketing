@@ -100,3 +100,38 @@ export function expandCrossPosts(config, list) {
   });
   return out;
 }
+
+/* ---------------- Tepat masa ---------------- */
+
+// Tarikh sebenar dipos bagi satu pos.
+export const postedDayOf = (p) => (p.primary ? (p.content.publishedDate || String(p.postedAt || '').slice(0, 10)) : String(p.postedAt || '').slice(0, 10));
+
+// Hari bekerja seterusnya (langkau Sabtu & Ahad).
+export function nextWorkingDay(iso) {
+  const d = new Date(`${iso}T00:00:00`);
+  do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Had akhir untuk dikira "tepat masa". Lalai: sehingga hari bekerja berikutnya, kerana pos malam
+// atau hujung minggu biasanya hanya sempat ditanda pada hari bekerja seterusnya.
+export function onTimeDeadline(config, date) {
+  if (!date) return '';
+  return config?.social?.graceWorkingDay === false ? date : nextWorkingDay(date);
+}
+
+// Keputusan tepat masa: pelarasan manual (Admin/SMM) mengatasi kiraan automatik.
+//   timing: 'ontime' | 'late' | '' (auto)
+export function timingOf(p) {
+  return p.primary ? (p.content.postTiming || '') : (p.content.crossPosts?.[p.idx]?.timing || '');
+}
+export function autoOnTime(config, p) {
+  const d = postedDayOf(p);
+  return !!d && d <= onTimeDeadline(config, p.date);
+}
+export function isOnTime(config, p) {
+  const t = timingOf(p);
+  if (t === 'ontime') return true;
+  if (t === 'late') return false;
+  return autoOnTime(config, p);
+}

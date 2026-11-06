@@ -29,6 +29,7 @@ export default function VideoRow({ content: c, action, showOwner }) {
           {showOwner && ownerName && <span className="muted">{ownerName}</span>}
           {!planApproved(config, c) && <span className="warn-text">{c.planReturn?.at ? 'Idea perlu diubah' : 'Idea belum lulus'}</span>}
           {stage === 'review' && <span className="warn-text">Video menunggu kelulusan</span>}
+          {stage === 'published' && !c.publishUrl && <span className="warn-text">Link post belum dimasukkan</span>}
         </div>
       </div>
       <ProgressButtons content={c} action={action} />

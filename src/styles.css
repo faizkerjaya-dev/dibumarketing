@@ -645,3 +645,8 @@ a.list-row:hover { background: var(--surface-2); color: var(--text); }
   .card, .stat { break-inside: avoid; box-shadow: none !important; }
   .monthly textarea { border: 0; resize: none; padding: 0; }
 }
+.link-remind { border-color: var(--amber-fill); }
+.link-remind .video-group-head { background: var(--amber-bg); color: var(--amber-fg); }
+.link-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 11px 16px; border-top: 1px solid var(--divider); }
+.video-group-head + .link-row { border-top: 0; }
+.stat-btn { font: inherit; font-size: inherit; color: inherit; text-decoration: underline dotted; text-underline-offset: 4px; }

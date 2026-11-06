@@ -15,13 +15,15 @@ import { useQuery, useDoc } from '../hooks/useFirestore';
 import { can } from '../lib/permissions';
 import { stageOf, isArchived } from '../lib/statuses';
 import { saveReportNote } from '../lib/db';
-import { postsOf, postState, accountsOf, accountColor, accountLabel } from '../lib/social';
+import { postsOf, postState, accountsOf, accountColor, accountLabel, isOnTime, postedDayOf } from '../lib/social';
+import { TimingControl } from './Posting';
+import { setPostTiming } from '../lib/db';
 import { GRADES, postedOn, erOf, median, metricsByContent, baselines, gradeOf } from '../lib/performance';
 import { monthKey, monthRange, shiftMonth, staffTarget, kpiStatus, monthPace } from '../lib/kpi';
-import { today, parseDate, monthLabel } from '../lib/dates';
+import { today, parseDate, monthLabel, fmtDate } from '../lib/dates';
 import { typeColor, OTHER } from '../lib/colors';
 import { writeXlsx } from '../lib/xlsx';
-import { PageHeader, Card, Button, IconButton, Pill, Loading, Textarea } from '../components/ui';
+import { PageHeader, Card, Button, IconButton, Pill, Loading, Textarea, Modal } from '../components/ui';
 import { HBars, fmtNum } from '../components/charts';
 
 const pctTxt = (n) => (n == null ? '—' : `${Math.round(n)}%`);
@@ -36,8 +38,8 @@ function computeMonth({ key, content, config, byContent, base, stats }) {
     .map((p) => ({ ...p, state: postState(config, p) }));
   const planned = posts.filter((p) => p.date <= t0 || p.state === 'done');
   const done = posts.filter((p) => p.state === 'done');
-  const postedDay = (p) => (p.primary ? (p.content.publishedDate || '') : String(p.postedAt || '').slice(0, 10));
-  const onTime = done.filter((p) => postedDay(p) && postedDay(p) <= p.date).length;
+  // Tepat masa: dipos sebelum hari bekerja berikutnya selepas tarikh jadual, atau dilaras oleh Admin/SMM.
+  const onTime = done.filter((p) => isOnTime(config, p)).length;
 
   const published = content.filter((c) => !c.isSlot && stageOf(config, c.status) === 'published' && postedOn(c) >= from && postedOn(c) <= to);
   const rows = published.map((c) => ({ c, m: byContent[c.id] })).map((r) => ({ ...r, er: erOf(r.m), g: gradeOf(r.m, base[r.c.platform || '-']) }));
@@ -77,6 +79,7 @@ export default function Monthly() {
   const targets = useDoc(useMemo(() => doc(db, 'kpiTargets', key), [key]), key);
   const noteQ = useDoc(useMemo(() => doc(db, 'reportNotes', key), [key]), key);
   const [note, setNote] = useState('');
+  const [timingFor, setTimingFor] = useState(null); // { title, posts }
   useEffect(() => { setNote(noteQ.data?.text || ''); }, [noteQ.data?.text, key]);
   const canNote = can(profile, 'content.approve');
 
@@ -97,11 +100,11 @@ export default function Monthly() {
   const creators = staff.map((s) => {
     const mine = cur.rows.filter((r) => r.c.ownerStaffId === s.id);
     const posts = cur.done.filter((p) => p.primary && p.content.ownerStaffId === s.id);
-    const ok = posts.filter((p) => (p.content.publishedDate || '') <= p.date).length;
+    const ok = posts.filter((p) => isOnTime(config, p)).length;
     const target = staffTarget(targets.data, s.id, 'published');
     const views = mine.filter((r) => r.m && Number(r.m.views) > 0);
     return {
-      s, n: mine.length, target, onTime: posts.length ? (ok / posts.length) * 100 : null,
+      s, posts, n: mine.length, target, onTime: posts.length ? (ok / posts.length) * 100 : null,
       median: median(views.map((r) => Number(r.m.views))), er: median(views.map((r) => r.er)),
       grades: GRADES.map((g) => mine.filter((r) => r.g?.key === g.key).length),
       kst: kpiStatus(mine.length, target, 'count', monthPace(key)),
@@ -117,7 +120,7 @@ export default function Monthly() {
   const deltaPct = (a, b) => (a == null || !b ? null : ((a - b) / b) * 100);
   const tiles = [
     { label: 'Pos sebenar / dirancang', value: `${cur.done.length} / ${cur.planned.length}`, delta: cur.planned.length ? `${Math.round((cur.done.length / cur.planned.length) * 100)}% ikut jadual` : 'Tiada pos dirancang', good: !cur.planned.length || cur.done.length / cur.planned.length >= 0.9 },
-    { label: 'Dipos tepat masa', value: pctTxt(cur.onTimePct), delta: cur.onTimePct != null && prev.onTimePct != null ? `${sign(cur.onTimePct - prev.onTimePct)} mata berbanding bulan lepas` : '', good: (cur.onTimePct ?? 0) >= (prev.onTimePct ?? 0) },
+    { label: 'Dipos tepat masa', onClick: () => setTimingFor({ title: 'Semua pos', keys: cur.done.map((p) => p.key) }), value: pctTxt(cur.onTimePct), delta: cur.onTimePct != null && prev.onTimePct != null ? `${sign(cur.onTimePct - prev.onTimePct)} mata berbanding bulan lepas` : '', good: (cur.onTimePct ?? 0) >= (prev.onTimePct ?? 0) },
     { label: 'Pengikut baharu (semua akaun)', value: cur.growth == null ? '—' : sign(cur.growth), delta: cur.growth == null ? 'Rekod pengikut dalam Laporan › Pengikut' : prev.growth > 0 ? `${sign(deltaPct(cur.growth, prev.growth))}% berbanding bulan lepas` : '', good: (cur.growth ?? 0) >= (prev.growth ?? 0) },
     { label: 'Median tontonan (Hari ke-7)', value: fmtNum(cur.medianViews), delta: prev.medianViews && cur.medianViews != null ? `${sign(deltaPct(cur.medianViews, prev.medianViews))}% berbanding bulan lepas` : `${cur.rec.length} video direkod`, good: (cur.medianViews ?? 0) >= (prev.medianViews ?? 0) },
   ];
@@ -162,7 +165,7 @@ export default function Monthly() {
         {tiles.map((t) => (
           <div key={t.label} className="stat">
             <span className="stat-label">{t.label}</span>
-            <span className="stat-value">{t.value}</span>
+            <span className="stat-value">{t.onClick ? <button type="button" className="link-btn stat-btn" onClick={t.onClick} title="Lihat dan laras setiap pos">{t.value}</button> : t.value}</span>
             {t.delta && <span className={`stat-hint ${t.good ? 'ok-text' : 'danger-text'}`}>{t.delta}</span>}
           </div>
         ))}
@@ -234,7 +237,7 @@ export default function Monthly() {
               <tr key={x.s.id}>
                 <td><span className="meta-dot"><span className="dot" style={{ background: staffColor[x.s.id] || OTHER }} />{x.s.name}</span></td>
                 <td className="num">{x.n}{x.target ? ` / ${x.target}` : ''}</td>
-                <td className="num">{pctTxt(x.onTime)}</td>
+                <td className="num">{x.posts.length ? <button type="button" className="link-btn" title="Lihat dan laras setiap pos" onClick={() => setTimingFor({ title: x.s.name, keys: x.posts.map((p) => p.key) })}>{pctTxt(x.onTime)}</button> : '—'}</td>
                 <td className="num strong">{fmtNum(x.median)}</td>
                 <td className="num">{x.er == null ? '—' : `${x.er.toFixed(1)}%`}</td>
                 <td className="center small">{x.grades.join(' / ')}</td>
@@ -258,6 +261,21 @@ export default function Monthly() {
           ) : <p className="pre-line">{note || <span className="muted">Tiada catatan.</span>}</p>}
         </Card>
       </div>
+
+      <Modal open={!!timingFor} wide onClose={() => setTimingFor(null)} title={`Tepat masa · ${timingFor?.title || ''}`} footer={<Button onClick={() => setTimingFor(null)}>Tutup</Button>}>
+        <p className="small muted">Auto: dikira tepat masa jika ditanda dipos sebelum hujung <strong>hari bekerja berikutnya</strong> selepas tarikh jadual (pos malam / hujung minggu tidak dikira lewat). {can(profile, 'content.approve') ? 'Anda boleh laras setiap pos secara manual.' : ''}</p>
+        <div className="table-wrap"><table className="table">
+          <thead><tr><th>Pos</th><th>Jadual</th><th>Dipos</th><th style={{ minWidth: 220 }}>Tepat masa</th></tr></thead>
+          <tbody>{cur.done.filter((p) => timingFor?.keys.includes(p.key)).sort((a, b) => a.date.localeCompare(b.date)).map((p) => (
+            <tr key={p.key}>
+              <td><span className="code-tag">{p.content.code}</span> {p.content.title}<span className="block small muted">{accountLabel(p.account)}</span></td>
+              <td className="small nowrap">{fmtDate(p.date, { weekday: 'short' })}{p.time ? ` ${p.time}` : ''}</td>
+              <td className="small nowrap">{postedDayOf(p) ? fmtDate(postedDayOf(p), { weekday: 'short' }) : '—'}</td>
+              <td><TimingControl post={p} config={config} canEdit={can(profile, 'content.approve')} onChange={(v) => run(() => setPostTiming(p, v, profile), 'Dikemas kini')} /></td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      </Modal>
     </div>
   );
 }

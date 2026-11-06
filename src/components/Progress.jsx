@@ -74,14 +74,14 @@ export function useProgressAction() {
       {confirmEl}
       <Modal open={!!post} onClose={() => setPost(null)} title="Tanda sudah dipos" footer={<>
         <Button onClick={() => setPost(null)}>Batal</Button>
-        <Button variant="primary" icon={Check} busy={busy} disabled={!post?.url?.trim()} onClick={savePost}>Simpan</Button>
+        <Button variant="primary" icon={Check} busy={busy} onClick={savePost}>{post?.url?.trim() ? 'Simpan' : 'Simpan tanpa link'}</Button>
       </>}>
         {post && <>
           <p className="small muted"><span className="code-tag">{post.content.code}</span> {post.content.title}</p>
-          <Field label="Link post" required hint="Salin link video dari TikTok / Instagram. Link ini digunakan untuk laporan prestasi.">
+          <Field label="Link post" hint="Pilihan. Jika belum ada (contoh pos malam), sistem akan ingatkan untuk tambah link kemudian.">
             <Input type="url" autoFocus value={post.url} onChange={(e) => setPost({ ...post, url: e.target.value })} placeholder="https://www.tiktok.com/@akaun/video/…" />
           </Field>
-          <Field label="Tarikh dipos"><Input type="date" value={post.date} onChange={(e) => setPost({ ...post, date: e.target.value })} /></Field>
+          <Field label="Tarikh dipos" hint="Lalai: tarikh jadual pos. Ubah jika video dipos pada hari lain."><Input type="date" value={post.date} onChange={(e) => setPost({ ...post, date: e.target.value })} /></Field>
         </>}
       </Modal>
     </>

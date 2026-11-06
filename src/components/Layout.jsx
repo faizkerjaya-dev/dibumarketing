@@ -167,7 +167,8 @@ export default function Layout() {
     if (!can(profile, 'content.post')) return 0;
     const t0 = today();
     return content.filter((c) => !c.archived && !isArchived(config, c.status))
-      .flatMap((c) => postsOf(config, c)).filter((p) => p.date === t0 && postState(config, p) === 'ready').length;
+      .flatMap((c) => postsOf(config, c))
+      .filter((p) => (p.date === t0 && postState(config, p) === 'ready') || (p.posted && !p.url && !p.content.isSlot && p.date <= t0 && p.date >= addDays(t0, -30))).length;
   }, [content, config, profile]);
   const items = navItems(profile, config, can(profile, 'content.approve') ? pendingApprovals : 0, postsDue);
   const creatorOnly = isCreatorOnly(profile);

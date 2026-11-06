@@ -687,7 +687,7 @@ export async function syncOwnerUids(list, staffById) {
 //   Edit ✓   → status ke Semakan (jika kelulusan video dihidupkan) atau terus Sedia terbit
 //   Pos ✓    → perlu link post; status ke Terbit, tarikh terbit = hari ini (boleh ubah)
 export async function markProgress(content, stepKey, on, ctx) {
-  const { config, profile, tasks = [], publishUrl, publishedDate } = ctx;
+  const { config, profile, tasks = [], publishUrl, publishedDate, scheduled } = ctx;
   const step = STEPS.find((s) => s.key === stepKey);
   if (!step) throw new AppError('Langkah tidak dikenali.');
   const at = nowIso();
@@ -711,10 +711,12 @@ export async function markProgress(content, stepKey, on, ctx) {
       if (videoApprovalOn(config) && ['idea', 'production', 'review'].includes(st) && !can(profile, 'content.approve')) {
         throw new AppError('Video ini belum diluluskan. Tunggu kelulusan sebelum pos.');
       }
+      // Link post TIDAK wajib semasa tanda dipos (contoh pos malam). Sistem akan ingatkan untuk masukkan link.
       const url = String(publishUrl ?? content.publishUrl ?? '').trim();
-      if (!/^https?:\/\//i.test(url)) throw new AppError('Tampal link post (bermula dengan https://) sebelum tanda Sudah dipos.');
+      if (url && !/^https?:\/\//i.test(url)) throw new AppError('Link post mesti bermula dengan https://');
       patch.publishUrl = url;
       patch.publishedDate = publishedDate || content.publishedDate || today();
+      patch.scheduledInApp = !!scheduled;
       patch.status = statusForStage(config, 'published');
     }
   } else {
@@ -830,15 +832,17 @@ export async function saveSocialSettings(data, profile) {
 }
 
 // Tanda / buang tanda satu pos silang (contoh IG Reels bagi video TikTok).
-export async function markCrossPost(content, idx, on, { url = '', profile }) {
+export async function markCrossPost(content, idx, on, { url = '', date = '', scheduled = false, profile }) {
   const list = [...(content.crossPosts || [])];
   if (!list[idx]) throw new AppError('Pos ini tidak dijumpai.');
   if (on) {
     const u = String(url || '').trim();
-    if (!/^https?:\/\//i.test(u)) throw new AppError('Tampal link post (bermula dengan https://).');
-    list[idx] = { ...list[idx], url: u, postedAt: nowIso(), postedBy: by(profile) };
+    if (u && !/^https?:\/\//i.test(u)) throw new AppError('Link post mesti bermula dengan https://');
+    // postedAt = tarikh sebenar dipos (boleh tarikh jadual jika ditanda kemudian).
+    const at = date && date !== today() ? `${date}T12:00:00` : nowIso();
+    list[idx] = { ...list[idx], url: u, postedAt: at, postedBy: by(profile), scheduled: !!scheduled };
   } else {
-    list[idx] = { ...list[idx], url: '', postedAt: null, postedBy: '' };
+    list[idx] = { ...list[idx], url: '', postedAt: null, postedBy: '', scheduled: false };
   }
   await updateById('content', content.id, { crossPosts: list }, profile);
   await logActivity(profile, { type: 'cross_posted', message: `${by(profile)} ${on ? 'tanda dipos' : 'buang tanda pos'} (${list[idx].accountId}): “${content.title}”`, refType: 'content', refId: content.id });
@@ -846,4 +850,31 @@ export async function markCrossPost(content, idx, on, { url = '', profile }) {
 
 export async function saveReportNote(key, text, profile) {
   await setById('reportNotes', key, { text: text || '', updatedBy: by(profile), updatedAtIso: nowIso() });
+}
+
+// Tambah / tukar link post selepas ditanda dipos (peringatan "Belum ada link").
+export async function addPostLink(post, url, profile) {
+  const u = String(url || '').trim();
+  if (!/^https?:\/\//i.test(u)) throw new AppError('Link post mesti bermula dengan https://');
+  const c = post.content;
+  if (post.primary) {
+    await updateById('content', c.id, { publishUrl: u }, profile);
+  } else {
+    const list = [...(c.crossPosts || [])];
+    list[post.idx] = { ...list[post.idx], url: u };
+    await updateById('content', c.id, { crossPosts: list }, profile);
+  }
+}
+
+// Pelarasan manual tepat masa oleh Admin / SMM: 'ontime' | 'late' | '' (ikut kiraan automatik).
+export async function setPostTiming(post, timing, profile) {
+  const c = post.content;
+  if (post.primary) {
+    await updateById('content', c.id, { postTiming: timing || '' }, profile);
+  } else {
+    const list = [...(c.crossPosts || [])];
+    list[post.idx] = { ...list[post.idx], timing: timing || '' };
+    await updateById('content', c.id, { crossPosts: list }, profile);
+  }
+  await logActivity(profile, { type: 'post_timing', message: `${by(profile)} laras status pos “${c.title}” → ${timing === 'ontime' ? 'Tepat masa' : timing === 'late' ? 'Lewat' : 'Auto'}`, refType: 'content', refId: c.id });
 }

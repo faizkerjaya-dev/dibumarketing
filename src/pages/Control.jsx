@@ -43,6 +43,7 @@ export default function Control() {
   const todayPosts = posts.filter((p) => p.date === t0);
   const emptySlots = posts.filter((p) => p.state === 'slot' && p.date >= t0 && p.date <= addDays(t0, 3));
   const notReadySoon = posts.filter((p) => ['notready'].includes(p.state) && p.date >= t0 && p.date <= addDays(t0, 1));
+  const noLink = posts.filter((p) => p.state === 'done' && !p.url && p.date <= t0 && p.date >= addDays(t0, -30));
   const d7due = live.filter((c) => stage(c) === 'published' && postedOn(c) <= addDays(t0, -7) && postedOn(c) >= addDays(t0, -60) && !d7done.has(c.id));
 
   const ideaWeeks = {};
@@ -55,6 +56,7 @@ export default function Control() {
     ...lateShoot.slice(0, 5).map((c) => ({ key: `s${c.id}`, kind: 'Lewat shoot', tone: 'red', title: `${c.code} ${c.title}`, meta: `${c.ownerName || 'Tiada pemilik'} · sasaran shoot ${fmtDate(c.shootDate)}`, to: `/content/${c.id}`, action: 'Buka' })),
     ...notReadySoon.slice(0, 5).map((p) => ({ key: `n${p.key}`, kind: 'Belum siap', tone: 'red', title: `${p.content.code} ${p.content.title}`, meta: `${accountLabel(p.account)} · pos ${relDue(p.date).toLowerCase()}`, to: `/content/${p.content.id}`, action: 'Buka' })),
     ...emptySlots.slice(0, 5).map((p) => ({ key: `e${p.key}`, kind: 'Slot kosong', tone: 'red', title: `${accountLabel(p.account)} · ${fmtDate(p.date, { weekday: 'short' })}${p.time ? ` ${p.time}` : ''}`, meta: 'Tiada video untuk slot ini', to: '/posting', action: 'Isi slot' })),
+    ...(noLink.length ? [{ key: 'nolink', kind: 'Link post', tone: 'amber', title: `${noLink.length} pos belum ada link`, meta: 'Masukkan link segera supaya laporan boleh dipadankan', to: '/posting', action: 'Masukkan' }] : []),
     ...(d7due.length ? [{ key: 'd7', kind: 'Laporan', tone: 'green', title: `${d7due.length} video perlu rekod Hari ke-7`, meta: 'Isi sekali gus dalam satu jadual', to: '/performance', action: 'Rekod' }] : []),
   ];
 

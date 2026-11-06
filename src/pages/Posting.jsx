@@ -3,15 +3,15 @@
 // link video final dan ruang tampal link post. Status pos dikira dari kemajuan & kelulusan video.
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Copy, ExternalLink, Settings2, Plus, Trash2 } from 'lucide-react';
+import { Check, Copy, ExternalLink, Settings2, Plus, Trash2, CalendarClock, Link2 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
 import { can } from '../lib/permissions';
 import { isArchived } from '../lib/statuses';
-import { markProgress, markCrossPost, saveSocialSettings } from '../lib/db';
-import { postsOf, postState, POST_STATES, accountsOf, accountColor, accountLabel } from '../lib/social';
+import { markProgress, markCrossPost, saveSocialSettings, addPostLink, setPostTiming } from '../lib/db';
+import { postsOf, postState, POST_STATES, accountsOf, accountColor, accountLabel, postedDayOf, timingOf, autoOnTime, onTimeDeadline } from '../lib/social';
 import { uid } from '../lib/constants';
 import { today, addDays, fmtDate, fmtDateTime, relDue } from '../lib/dates';
 import { usePersistentState } from '../hooks/usePersistentState';
@@ -41,6 +41,8 @@ export default function Posting() {
   const [showDone, setShowDone] = usePersistentState('post_done', true);
   const [selKey, setSelKey] = useState(null);
   const [url, setUrl] = useState('');
+  const [postDate, setPostDate] = useState(today());
+  const [links, setLinks] = useState({}); // input link bagi senarai peringatan
   const [busy, setBusy] = useState(false);
   const [accOpen, setAccOpen] = useState(false);
   const [drawer, setDrawer] = useState(null);
@@ -65,18 +67,33 @@ export default function Posting() {
   const days = [...new Set(list.map((p) => p.date))];
   const selected = [...late, ...list].find((p) => p.key === selKey) || list.find((p) => p.state === 'ready') || late[0] || list[0] || null;
   const todayPosts = allPosts.filter((p) => p.date === t0);
+  // Peringatan: pos yang sudah ditanda dipos tetapi belum ada link (30 hari terakhir).
+  const noLink = allPosts.filter((p) => inScope(p) && p.state === 'done' && !p.url && !p.content.isSlot && p.date <= t0 && p.date >= addDays(t0, -30))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  // Tarikh dipos lalai ikut pos yang dipilih: tarikh jadual jika sudah lepas, jika tidak hari ini.
+  const selDate = selected?.date || '';
+  useEffect(() => { setPostDate(selDate && selDate < t0 ? selDate : t0); }, [selected?.key, selDate, t0]);
 
   if (!ready) return <div className="page"><Loading /></div>;
 
+  // Tarikh dipos lalai: tarikh jadual jika sudah lepas (contoh pos malam semalam ditanda pagi ini).
   const pick = (p) => { setSelKey(p.key); setUrl(''); };
-  const markPosted = async (p, on) => {
+  const markPosted = async (p, on, scheduled = false) => {
+    const date = scheduled ? p.date : (postDate || t0);
     setBusy(true);
     const ok = await run(() => (p.primary
-      ? markProgress(p.content, 'posted', on, { config, profile, staffById, tasks, publishUrl: url, publishedDate: t0 })
-      : markCrossPost(p.content, p.idx, on, { url, profile })), on ? `Dipos ke ${accountLabel(p.account)}` : 'Tanda pos dibuang');
+      ? markProgress(p.content, 'posted', on, { config, profile, staffById, tasks, publishUrl: url, publishedDate: date, scheduled })
+      : markCrossPost(p.content, p.idx, on, { url, date, scheduled, profile })),
+    on ? (scheduled ? `Ditanda: dijadual dalam app (${accountLabel(p.account)})` : `Dipos ke ${accountLabel(p.account)}${url.trim() ? '' : '. Jangan lupa tambah link post.'}`) : 'Tanda pos dibuang');
     setBusy(false);
     if (ok) setUrl('');
   };
+  const saveLink = async (p, value) => {
+    const ok = await run(() => addPostLink(p, value, profile), 'Link post disimpan');
+    if (ok) setLinks((x) => ({ ...x, [p.key]: '' }));
+  };
+  const canTiming = can(profile, 'content.approve');
 
   const row = (p) => {
     const st = POST_STATES[p.state];
@@ -129,6 +146,25 @@ export default function Posting() {
 
       <div className="split">
         <div className="main">
+          {noLink.length > 0 && (
+            <Card pad={false} className="video-group link-remind">
+              <div className="video-group-head"><strong className="row gap-xs"><Link2 size={16} />Masukkan link post segera ({noLink.length})</strong><span className="small muted">Link diperlukan untuk laporan Hari ke-7</span></div>
+              {noLink.map((p) => (
+                <div key={p.key} className="link-row">
+                  <span className="grow min0" style={{ flexBasis: 240 }}>
+                    <span className="block"><span className="code-tag">{p.content.code}</span> <strong>{p.content.title}</strong></span>
+                    <span className="small muted">{accountLabel(p.account)} · dipos {fmtDate(postedDayOf(p) || p.date, { weekday: 'short' })}{p.content.scheduledInApp || p.content.crossPosts?.[p.idx]?.scheduled ? ' · dijadual dalam app' : ''}</span>
+                  </span>
+                  {canPost || p.content.ownerUid === profile.uid ? (
+                    <span className="row gap-xs" style={{ flex: '1 1 300px' }}>
+                      <Input type="url" aria-label={`Link post ${p.content.code}`} value={links[p.key] || ''} onChange={(e) => setLinks((x) => ({ ...x, [p.key]: e.target.value }))} placeholder="Tampal link post https://…" />
+                      <Button size="sm" variant="primary" disabled={!(links[p.key] || '').trim()} onClick={() => saveLink(p, links[p.key])}>Simpan</Button>
+                    </span>
+                  ) : <span className="small warn-text">Belum ada link</span>}
+                </div>
+              ))}
+            </Card>
+          )}
           {late.length > 0 && (
             <Card pad={false} className="video-group">
               <div className="video-group-head late"><strong>Lewat (belum dipos)</strong><span className="small muted">{late.length} pos</span></div>
@@ -184,15 +220,28 @@ export default function Posting() {
 
                 {selected.state === 'done' ? (
                   <div className="col gap-sm">
-                    <span className="small">Dipos{selected.postedBy ? ` oleh ${selected.postedBy}` : ''}{selected.postedAt && selected.postedAt.length > 10 ? ` · ${fmtDateTime(selected.postedAt)}` : ''}</span>
-                    {selected.url && <a href={selected.url} target="_blank" rel="noreferrer" className="row gap-xs"><ExternalLink size={14} />Lihat post</a>}
+                    <span className="small">{(selected.primary ? selected.content.scheduledInApp : selected.content.crossPosts?.[selected.idx]?.scheduled) ? 'Dijadual dalam app' : 'Dipos'} {fmtDate(postedDayOf(selected) || selected.date, { weekday: 'short' })}{selected.postedBy ? ` oleh ${selected.postedBy}` : ''}</span>
+                    {selected.url ? <a href={selected.url} target="_blank" rel="noreferrer" className="row gap-xs"><ExternalLink size={14} />Lihat post</a> : (
+                      <div className="warnbox col gap-sm" style={{ alignItems: 'stretch' }}>
+                        <strong className="small">Belum ada link post</strong>
+                        <Input type="url" value={links[selected.key] || ''} onChange={(e) => setLinks((x) => ({ ...x, [selected.key]: e.target.value }))} placeholder="Tampal link post https://…" />
+                        <Button size="sm" variant="primary" disabled={!(links[selected.key] || '').trim()} onClick={() => saveLink(selected, links[selected.key])}>Simpan link</Button>
+                      </div>
+                    )}
+                    <TimingControl post={selected} config={config} canEdit={canTiming} onChange={(v) => run(() => setPostTiming(selected, v, profile), 'Status tepat masa dikemas kini')} />
                     {canPost && <Button size="sm" onClick={() => markPosted(selected, false)} disabled={busy}>Buang tanda dipos</Button>}
                   </div>
                 ) : selected.state === 'ready' ? (
                   canPost ? (
                     <div className="col gap-sm">
-                      <Field label="Link post" required hint="Salin link dari app selepas pos."><Input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" /></Field>
-                      <Button variant="primary" icon={Check} busy={busy} disabled={!url.trim()} onClick={() => markPosted(selected, true)}>Tanda sudah dipos</Button>
+                      <Field label="Link post" hint="Pilihan. Boleh tambah kemudian; sistem akan ingatkan."><Input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" /></Field>
+                      <Field label="Tarikh dipos"><Input type="date" value={postDate} onChange={(e) => setPostDate(e.target.value)} /></Field>
+                      <Button variant="primary" icon={Check} busy={busy} onClick={() => markPosted(selected, true)}>Tanda sudah dipos</Button>
+                      {selected.date >= t0 && (
+                        <Button icon={CalendarClock} busy={busy} onClick={() => markPosted(selected, true, true)} title="Untuk pos malam / hujung minggu yang sudah dijadualkan dalam TikTok, Meta Business Suite dan lain-lain">
+                          Sudah dijadual dalam app ({fmtDate(selected.date, { weekday: 'short' })}{selected.time ? ` ${selected.time}` : ''})
+                        </Button>
+                      )}
                     </div>
                   ) : <p className="small muted">Pos dibuat oleh Social Media Manager.</p>
                 ) : selected.state === 'waiting' ? (
@@ -228,11 +277,13 @@ function AccountsModal({ open, onClose }) {
   const { run } = useToast();
   const [rows, setRows] = useState([]);
   const [creatorPost, setCreatorPost] = useState(false);
+  const [grace, setGrace] = useState(true);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!open) return;
     setRows(accountsOf(config).map((a) => ({ ...a })));
     setCreatorPost(!!config?.social?.creatorCanPost);
+    setGrace(config?.social?.graceWorkingDay !== false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -244,7 +295,7 @@ function AccountsModal({ open, onClose }) {
       name: (r.handle || '').trim() ? `${r.platform} ${(r.handle || '').trim()}` : r.platform,
     }));
     setBusy(true);
-    const ok = await run(() => saveSocialSettings({ accounts: clean, creatorCanPost: creatorPost }, profile), 'Akaun media sosial disimpan');
+    const ok = await run(() => saveSocialSettings({ accounts: clean, creatorCanPost: creatorPost, graceWorkingDay: grace }, profile), 'Akaun media sosial disimpan');
     setBusy(false);
     if (ok) onClose();
   };
@@ -270,6 +321,30 @@ function AccountsModal({ open, onClose }) {
         <input type="checkbox" checked={creatorPost} onChange={(e) => setCreatorPost(e.target.checked)} />
         Content Creator boleh tanda Pos sendiri (jika tidak, hanya SMM / pengurus yang pos)
       </label>
+      <label className="check" style={{ marginTop: 8 }}>
+        <input type="checkbox" checked={grace} onChange={(e) => setGrace(e.target.checked)} />
+        Kira "tepat masa" jika ditanda dipos sebelum hujung hari bekerja berikutnya (pos malam / hujung minggu tidak dikira lewat)
+      </label>
     </Modal>
+  );
+}
+
+// Status tepat masa satu pos: kiraan automatik + pelarasan Admin / SMM.
+export function TimingControl({ post, config, canEdit, onChange }) {
+  const auto = autoOnTime(config, post);
+  const cur = timingOf(post);
+  const final = cur ? cur === 'ontime' : auto;
+  return (
+    <div className="col gap-xs">
+      <span className="small">
+        <span className="muted">Tepat masa: </span>
+        <strong className={final ? 'ok-text' : 'danger-text'}>{final ? 'Ya' : 'Lewat'}</strong>
+        <span className="muted"> · {cur ? 'dilaras manual' : `auto (had ${fmtDate(onTimeDeadline(config, post.date), { weekday: 'short' })})`}</span>
+      </span>
+      {canEdit && (
+        <Select value={cur} onChange={(e) => onChange(e.target.value)} aria-label="Laras tepat masa"
+          options={[{ value: '', label: `Auto (${auto ? 'tepat masa' : 'lewat'})` }, { value: 'ontime', label: 'Tepat masa' }, { value: 'late', label: 'Lewat' }]} />
+      )}
+    </div>
   );
 }
