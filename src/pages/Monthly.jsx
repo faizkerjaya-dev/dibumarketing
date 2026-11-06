@@ -263,7 +263,7 @@ export default function Monthly() {
       </div>
 
       <Modal open={!!timingFor} wide onClose={() => setTimingFor(null)} title={`Tepat masa · ${timingFor?.title || ''}`} footer={<Button onClick={() => setTimingFor(null)}>Tutup</Button>}>
-        <p className="small muted">Auto: dikira tepat masa jika ditanda dipos sebelum hujung <strong>hari bekerja berikutnya</strong> selepas tarikh jadual (pos malam / hujung minggu tidak dikira lewat). {can(profile, 'content.approve') ? 'Anda boleh laras setiap pos secara manual.' : ''}</p>
+        <p className="small muted">Auto: <strong>tepat masa</strong> jika tarikh dipos sama dengan (atau sebelum) tarikh jadual, walaupun ditanda kemudian. <strong>Lewat</strong> jika dipos selepas tarikh jadual, termasuk jika tarikh pos dianjak ke hari kemudian selepas pelan diluluskan. {can(profile, 'content.approve') ? 'Anda boleh laras setiap pos secara manual.' : ''}</p>
         <div className="table-wrap"><table className="table">
           <thead><tr><th>Pos</th><th>Jadual</th><th>Dipos</th><th style={{ minWidth: 220 }}>Tepat masa</th></tr></thead>
           <tbody>{cur.done.filter((p) => timingFor?.keys.includes(p.key)).sort((a, b) => a.date.localeCompare(b.date)).map((p) => (

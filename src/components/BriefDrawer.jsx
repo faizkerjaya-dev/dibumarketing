@@ -14,7 +14,7 @@ import { missingForStatus, FIELD_LABELS } from '../lib/workflow';
 import { AppError } from '../lib/errors';
 import { TASK_ROLES, PRIORITIES } from '../lib/constants';
 import { typeColor } from '../lib/colors';
-import { accountsOf, accountOf, accountById, accountLabel, accountColor } from '../lib/social';
+import { accountsOf, accountOf, accountById, accountLabel, accountColor, rescheduleFields } from '../lib/social';
 import { today, daysBetween } from '../lib/dates';
 import { Button, Field, Input, Select, Textarea } from './ui';
 
@@ -82,6 +82,7 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
         priority: f.priority, type: f.type, publishAccount: f.publishAccount, status: f.status,
         crossPosts: f.crossIds.filter((id) => id !== f.publishAccount).map((id) => (content?.crossPosts || []).find((x) => x.accountId === id) || { accountId: id, date: '', time: '', url: '', postedAt: null, postedBy: '' }),
         brief: f.brief,
+        ...(content ? rescheduleFields(config, content, f.publishDate) : {}),
       };
       // Syarat aliran kerja yang sama seperti Papan kerja: contohnya status Terbit perlukan link post.
       const missing = missingForStatus(config, { ...content, ...payload }, f.status);

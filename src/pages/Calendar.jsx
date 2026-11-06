@@ -25,7 +25,7 @@ import { QuickPlanModal, BulkFillModal } from '../components/SlotPlanModal';
 import DayModal, { colorFor, breakdown } from '../components/DayModal';
 import { ProgressDots } from '../components/Progress';
 import { progressOf } from '../lib/progress';
-import { expandCrossPosts, accountsOf, accountColor, accountLabel } from '../lib/social';
+import { expandCrossPosts, accountsOf, accountColor, accountLabel, rescheduleFields } from '../lib/social';
 import { usePersistentState } from '../hooks/usePersistentState';
 
 const WEEKDAYS = ['Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab', 'Ahd'];
@@ -151,7 +151,7 @@ export default function CalendarPage() {
     const ok = await confirm(`Pindah tarikh pos “${c.title || c.slotLabel}” dari ${fmtDate(c.publishDate)} ke ${fmtDate(day)}?\n\nTarikh shoot dan deadline tugasan tidak berubah.`, { title: 'Pindah tarikh pos', okLabel: 'Pindah' });
     if (!ok) return;
     await run(async () => {
-      await updateById('content', c.id, { publishDate: day }, profile);
+      await updateById('content', c.id, { publishDate: day, ...rescheduleFields(config, c, day) }, profile);
       await logActivity(profile, { type: 'publish_date_changed', message: `${profile.name} pindah tarikh terbit “${c.title || c.slotLabel || c.code}” ke ${fmtDate(day)}`, refType: 'content', refId: c.id });
     }, 'Tarikh pos dikemas kini');
   };

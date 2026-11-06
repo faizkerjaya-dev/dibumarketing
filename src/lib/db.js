@@ -687,7 +687,7 @@ export async function syncOwnerUids(list, staffById) {
 //   Edit ✓   → status ke Semakan (jika kelulusan video dihidupkan) atau terus Sedia terbit
 //   Pos ✓    → perlu link post; status ke Terbit, tarikh terbit = hari ini (boleh ubah)
 export async function markProgress(content, stepKey, on, ctx) {
-  const { config, profile, tasks = [], publishUrl, publishedDate, scheduled } = ctx;
+  const { config, profile, tasks = [], publishUrl, publishedDate, publishedTime, scheduled } = ctx;
   const step = STEPS.find((s) => s.key === stepKey);
   if (!step) throw new AppError('Langkah tidak dikenali.');
   const at = nowIso();
@@ -717,6 +717,7 @@ export async function markProgress(content, stepKey, on, ctx) {
       patch.publishUrl = url;
       patch.publishedDate = publishedDate || content.publishedDate || today();
       patch.scheduledInApp = !!scheduled;
+      patch.publishedTime = publishedTime || '';
       patch.status = statusForStage(config, 'published');
     }
   } else {
@@ -832,7 +833,7 @@ export async function saveSocialSettings(data, profile) {
 }
 
 // Tanda / buang tanda satu pos silang (contoh IG Reels bagi video TikTok).
-export async function markCrossPost(content, idx, on, { url = '', date = '', scheduled = false, profile }) {
+export async function markCrossPost(content, idx, on, { url = '', date = '', time = '', scheduled = false, profile }) {
   const list = [...(content.crossPosts || [])];
   if (!list[idx]) throw new AppError('Pos ini tidak dijumpai.');
   if (on) {
@@ -840,7 +841,7 @@ export async function markCrossPost(content, idx, on, { url = '', date = '', sch
     if (u && !/^https?:\/\//i.test(u)) throw new AppError('Link post mesti bermula dengan https://');
     // postedAt = tarikh sebenar dipos (boleh tarikh jadual jika ditanda kemudian).
     const at = date && date !== today() ? `${date}T12:00:00` : nowIso();
-    list[idx] = { ...list[idx], url: u, postedAt: at, postedBy: by(profile), scheduled: !!scheduled };
+    list[idx] = { ...list[idx], url: u, postedAt: at, postedTime: time || '', postedBy: by(profile), scheduled: !!scheduled };
   } else {
     list[idx] = { ...list[idx], url: '', postedAt: null, postedBy: '', scheduled: false };
   }

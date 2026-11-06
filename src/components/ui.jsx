@@ -51,10 +51,10 @@ export function PageHeader({ title, crumb, actions, children }) {
 }
 
 // group: guna untuk kumpulan butang (MultiChips) supaya klik pada label tidak menekan butang pertama.
-export function Field({ label, hint, required, children, full, group }) {
+export function Field({ label, hint, required, children, full, group, style }) {
   const Tag = group ? 'div' : 'label';
   return (
-    <Tag className={`field${full ? ' field-full' : ''}`} role={group ? 'group' : undefined} aria-label={group ? label : undefined}>
+    <Tag className={`field${full ? ' field-full' : ''}`} style={style} role={group ? 'group' : undefined} aria-label={group ? label : undefined}>
       <span className="field-label">{label}{required && <span className="req"> *</span>}</span>
       {children}
       {hint && <span className="field-hint">{hint}</span>}

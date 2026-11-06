@@ -60,12 +60,12 @@ export function useProgressAction() {
       await doMark(content, key, false);
       return;
     }
-    if (key === 'posted') { setPost({ content, url: content.publishUrl || '', date: content.publishDate && content.publishDate < today() ? content.publishDate : today() }); return; }
+    if (key === 'posted') { setPost({ content, url: content.publishUrl || '', time: '', date: content.publishDate && content.publishDate < today() ? content.publishDate : today() }); return; }
     await doMark(content, key, true);
   };
 
   const savePost = async () => {
-    const ok = await doMark(post.content, 'posted', true, { publishUrl: post.url, publishedDate: post.date });
+    const ok = await doMark(post.content, 'posted', true, { publishUrl: post.url, publishedDate: post.date, publishedTime: post.time });
     if (ok) setPost(null);
   };
 
@@ -81,7 +81,12 @@ export function useProgressAction() {
           <Field label="Link post" hint="Pilihan. Jika belum ada (contoh pos malam), sistem akan ingatkan untuk tambah link kemudian.">
             <Input type="url" autoFocus value={post.url} onChange={(e) => setPost({ ...post, url: e.target.value })} placeholder="https://www.tiktok.com/@akaun/video/…" />
           </Field>
-          <Field label="Tarikh dipos" hint="Lalai: tarikh jadual pos. Ubah jika video dipos pada hari lain."><Input type="date" value={post.date} onChange={(e) => setPost({ ...post, date: e.target.value })} /></Field>
+          <div className="row gap-sm wrap">
+            <Field label="Tarikh dipos" hint="Lalai: tarikh jadual. Lewat jika selepas tarikh jadual." style={{ flex: '1 1 200px' }}><Input type="date" value={post.date} onChange={(e) => setPost({ ...post, date: e.target.value })} /></Field>
+            <Field label="Masa dipos" hint="Pilihan" style={{ flex: '1 1 140px' }}><Input type="time" value={post.time || ''} onChange={(e) => setPost({ ...post, time: e.target.value })} /></Field>
+          </div>
+          {post.content.publishDate && post.date > (post.content.plannedPublishDate || post.content.publishDate) && <p className="small warn-text">Tarikh ini selepas tarikh jadual ({fmtDate(post.content.plannedPublishDate || post.content.publishDate)}). Pos akan dikira lewat.</p>}
+          {!post.url?.trim() && <p className="small muted">Tiada link? Pos ini akan masuk senarai peringatan “Masukkan link post segera”.</p>}
         </>}
       </Modal>
     </>

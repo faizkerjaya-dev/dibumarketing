@@ -275,7 +275,7 @@ Email dipadankan dengan email dalam profil staf (Pasukan) atau email akaun log m
 - **Laporan bulanan** (`/monthly`): pos dirancang vs sebenar, tepat masa, pengikut setiap akaun, gred Hari ke-7, video terbaik/terlemah, prestasi creator, jenis content, catatan SMM. Cetak/PDF dan Export Excel.
 
 ### v3.6.1
-- **Tepat masa** kini dikira sehingga hujung *hari bekerja berikutnya* selepas tarikh jadual (pos malam / hujung minggu tidak dikira lewat). Boleh dimatikan dalam Jadual pos › Akaun & tetapan. Admin / SMM boleh laras setiap pos (Auto / Tepat masa / Lewat) dalam Jadual pos atau Laporan bulanan (klik peratus Tepat masa).
+- **Tepat masa** ikut *tarikh dipos* berbanding *tarikh jadual*, bukan bila ia ditanda. Pos malam yang ditanda esok pagi dengan tarikh dipos = tarikh jadual tetap tepat masa. Jika tarikh pos dianjak ke hari kemudian selepas pelan diluluskan, tarikh asal disimpan (`plannedPublishDate`) dan pos dikira lewat. Admin / Marketing Manager / SMM boleh laras setiap pos (Auto / Tepat masa / Lewat) dalam Jadual pos atau Laporan bulanan.
 - **Tarikh dipos** lalai = tarikh jadual bila menanda pos yang sudah lepas.
-- **Link post tidak wajib** semasa tanda dipos. Pos tanpa link muncul dalam kotak "Masukkan link post segera" (Jadual pos), Pusat kawalan dan lencana menu.
+- **Link post dan masa dipos tidak wajib** semasa tanda dipos. Pos tanpa link muncul dalam kotak "Masukkan link post segera" (Jadual pos), Pusat kawalan dan lencana menu.
 - Butang **"Sudah dijadual dalam app"** untuk pos malam / hujung minggu yang dijadualkan dalam TikTok / Meta Business Suite.

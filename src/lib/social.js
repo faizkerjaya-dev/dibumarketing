@@ -44,13 +44,15 @@ export function postsOf(config, c) {
   const pr = progressOf(config, c);
   const main = {
     key: `${c.id}:main`, content: c, primary: true, idx: -1, account: accountOf(config, c),
-    date: c.publishDate || '', time: c.publishTime || '', posted: pr.posted, url: c.publishUrl || '',
+    date: c.publishDate || '', planned: c.plannedPublishDate || '', time: c.publishTime || '', posted: pr.posted, url: c.publishUrl || '',
+    postedTime: c.publishedTime || '',
     postedAt: c.progress?.posted?.at || (pr.posted ? c.publishedDate : ''), postedBy: c.progress?.posted?.by || '',
   };
   const cross = (c.crossPosts || []).map((x, i) => ({
     key: `${c.id}:x${i}`, content: c, primary: false, idx: i,
     account: accountById(config, x.accountId) || { id: x.accountId, platform: '', name: x.accountId },
-    date: x.date || c.publishDate || '', time: x.time || c.publishTime || '', posted: !!x.postedAt, url: x.url || '',
+    date: x.date || c.publishDate || '', planned: x.date ? '' : (c.plannedPublishDate || ''), time: x.time || c.publishTime || '', posted: !!x.postedAt, url: x.url || '',
+    postedTime: x.postedTime || '',
     postedAt: x.postedAt || '', postedBy: x.postedBy || '',
   }));
   return [main, ...cross];
@@ -106,18 +108,12 @@ export function expandCrossPosts(config, list) {
 // Tarikh sebenar dipos bagi satu pos.
 export const postedDayOf = (p) => (p.primary ? (p.content.publishedDate || String(p.postedAt || '').slice(0, 10)) : String(p.postedAt || '').slice(0, 10));
 
-// Hari bekerja seterusnya (langkau Sabtu & Ahad).
-export function nextWorkingDay(iso) {
-  const d = new Date(`${iso}T00:00:00`);
-  do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-// Had akhir untuk dikira "tepat masa". Lalai: sehingga hari bekerja berikutnya, kerana pos malam
-// atau hujung minggu biasanya hanya sempat ditanda pada hari bekerja seterusnya.
-export function onTimeDeadline(config, date) {
-  if (!date) return '';
-  return config?.social?.graceWorkingDay === false ? date : nextWorkingDay(date);
+// Tarikh sasaran untuk kira tepat masa = tarikh pos ASAL (plannedPublishDate) jika tarikh pos
+// pernah dianjak ke hari kemudian selepas pelan diluluskan; jika tidak, tarikh pos semasa.
+// Pos dikira LEWAT jika tarikh sebenar dipos selepas tarikh sasaran. Bila ia ditanda tidak penting:
+// pos malam yang ditanda esok pagi dengan "Tarikh dipos" = tarikh jadual tetap tepat masa.
+export function onTimeDeadline(config, p) {
+  return p.planned && p.planned < p.date ? p.planned : p.date;
 }
 
 // Keputusan tepat masa: pelarasan manual (Admin/SMM) mengatasi kiraan automatik.
@@ -127,11 +123,19 @@ export function timingOf(p) {
 }
 export function autoOnTime(config, p) {
   const d = postedDayOf(p);
-  return !!d && d <= onTimeDeadline(config, p.date);
+  return !!d && d <= onTimeDeadline(config, p);
 }
 export function isOnTime(config, p) {
   const t = timingOf(p);
   if (t === 'ontime') return true;
   if (t === 'late') return false;
   return autoOnTime(config, p);
+}
+
+// Bila tarikh pos dianjak ke hari KEMUDIAN selepas pelan diluluskan, simpan tarikh asal
+// supaya pos itu dikira lewat (Admin / manager masih boleh laras).
+export function rescheduleFields(config, c, newDate) {
+  if (!c || !c.publishDate || !newDate || newDate <= c.publishDate || c.plannedPublishDate) return {};
+  if (stageOf(config, c.status) === 'idea') return {};
+  return { plannedPublishDate: c.publishDate };
 }

@@ -42,6 +42,7 @@ export default function Posting() {
   const [selKey, setSelKey] = useState(null);
   const [url, setUrl] = useState('');
   const [postDate, setPostDate] = useState(today());
+  const [postTime, setPostTime] = useState('');
   const [links, setLinks] = useState({}); // input link bagi senarai peringatan
   const [busy, setBusy] = useState(false);
   const [accOpen, setAccOpen] = useState(false);
@@ -73,7 +74,7 @@ export default function Posting() {
 
   // Tarikh dipos lalai ikut pos yang dipilih: tarikh jadual jika sudah lepas, jika tidak hari ini.
   const selDate = selected?.date || '';
-  useEffect(() => { setPostDate(selDate && selDate < t0 ? selDate : t0); }, [selected?.key, selDate, t0]);
+  useEffect(() => { setPostDate(selDate && selDate < t0 ? selDate : t0); setPostTime(''); }, [selected?.key, selDate, t0]);
 
   if (!ready) return <div className="page"><Loading /></div>;
 
@@ -83,8 +84,8 @@ export default function Posting() {
     const date = scheduled ? p.date : (postDate || t0);
     setBusy(true);
     const ok = await run(() => (p.primary
-      ? markProgress(p.content, 'posted', on, { config, profile, staffById, tasks, publishUrl: url, publishedDate: date, scheduled })
-      : markCrossPost(p.content, p.idx, on, { url, date, scheduled, profile })),
+      ? markProgress(p.content, 'posted', on, { config, profile, staffById, tasks, publishUrl: url, publishedDate: date, publishedTime: scheduled ? p.time : postTime, scheduled })
+      : markCrossPost(p.content, p.idx, on, { url, date, time: scheduled ? p.time : postTime, scheduled, profile })),
     on ? (scheduled ? `Ditanda: dijadual dalam app (${accountLabel(p.account)})` : `Dipos ke ${accountLabel(p.account)}${url.trim() ? '' : '. Jangan lupa tambah link post.'}`) : 'Tanda pos dibuang');
     setBusy(false);
     if (ok) setUrl('');
@@ -220,7 +221,7 @@ export default function Posting() {
 
                 {selected.state === 'done' ? (
                   <div className="col gap-sm">
-                    <span className="small">{(selected.primary ? selected.content.scheduledInApp : selected.content.crossPosts?.[selected.idx]?.scheduled) ? 'Dijadual dalam app' : 'Dipos'} {fmtDate(postedDayOf(selected) || selected.date, { weekday: 'short' })}{selected.postedBy ? ` oleh ${selected.postedBy}` : ''}</span>
+                    <span className="small">{(selected.primary ? selected.content.scheduledInApp : selected.content.crossPosts?.[selected.idx]?.scheduled) ? 'Dijadual dalam app' : 'Dipos'} {fmtDate(postedDayOf(selected) || selected.date, { weekday: 'short' })}{selected.postedTime ? ` ${selected.postedTime}` : ''}{selected.postedBy ? ` oleh ${selected.postedBy}` : ''}</span>
                     {selected.url ? <a href={selected.url} target="_blank" rel="noreferrer" className="row gap-xs"><ExternalLink size={14} />Lihat post</a> : (
                       <div className="warnbox col gap-sm" style={{ alignItems: 'stretch' }}>
                         <strong className="small">Belum ada link post</strong>
@@ -235,7 +236,11 @@ export default function Posting() {
                   canPost ? (
                     <div className="col gap-sm">
                       <Field label="Link post" hint="Pilihan. Boleh tambah kemudian; sistem akan ingatkan."><Input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" /></Field>
-                      <Field label="Tarikh dipos"><Input type="date" value={postDate} onChange={(e) => setPostDate(e.target.value)} /></Field>
+                      <div className="row gap-sm wrap">
+                        <Field label="Tarikh dipos" style={{ flex: '1 1 150px' }}><Input type="date" value={postDate} onChange={(e) => setPostDate(e.target.value)} /></Field>
+                        <Field label="Masa (pilihan)" style={{ flex: '1 1 110px' }}><Input type="time" value={postTime} onChange={(e) => setPostTime(e.target.value)} /></Field>
+                      </div>
+                      {postDate > onTimeDeadline(config, selected) && <p className="small warn-text">Selepas tarikh jadual ({fmtDate(onTimeDeadline(config, selected))}). Pos akan dikira lewat.</p>}
                       <Button variant="primary" icon={Check} busy={busy} onClick={() => markPosted(selected, true)}>Tanda sudah dipos</Button>
                       {selected.date >= t0 && (
                         <Button icon={CalendarClock} busy={busy} onClick={() => markPosted(selected, true, true)} title="Untuk pos malam / hujung minggu yang sudah dijadualkan dalam TikTok, Meta Business Suite dan lain-lain">
@@ -277,13 +282,11 @@ function AccountsModal({ open, onClose }) {
   const { run } = useToast();
   const [rows, setRows] = useState([]);
   const [creatorPost, setCreatorPost] = useState(false);
-  const [grace, setGrace] = useState(true);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!open) return;
     setRows(accountsOf(config).map((a) => ({ ...a })));
     setCreatorPost(!!config?.social?.creatorCanPost);
-    setGrace(config?.social?.graceWorkingDay !== false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -295,7 +298,7 @@ function AccountsModal({ open, onClose }) {
       name: (r.handle || '').trim() ? `${r.platform} ${(r.handle || '').trim()}` : r.platform,
     }));
     setBusy(true);
-    const ok = await run(() => saveSocialSettings({ accounts: clean, creatorCanPost: creatorPost, graceWorkingDay: grace }, profile), 'Akaun media sosial disimpan');
+    const ok = await run(() => saveSocialSettings({ accounts: clean, creatorCanPost: creatorPost }, profile), 'Akaun media sosial disimpan');
     setBusy(false);
     if (ok) onClose();
   };
@@ -321,10 +324,6 @@ function AccountsModal({ open, onClose }) {
         <input type="checkbox" checked={creatorPost} onChange={(e) => setCreatorPost(e.target.checked)} />
         Content Creator boleh tanda Pos sendiri (jika tidak, hanya SMM / pengurus yang pos)
       </label>
-      <label className="check" style={{ marginTop: 8 }}>
-        <input type="checkbox" checked={grace} onChange={(e) => setGrace(e.target.checked)} />
-        Kira "tepat masa" jika ditanda dipos sebelum hujung hari bekerja berikutnya (pos malam / hujung minggu tidak dikira lewat)
-      </label>
     </Modal>
   );
 }
@@ -339,7 +338,7 @@ export function TimingControl({ post, config, canEdit, onChange }) {
       <span className="small">
         <span className="muted">Tepat masa: </span>
         <strong className={final ? 'ok-text' : 'danger-text'}>{final ? 'Ya' : 'Lewat'}</strong>
-        <span className="muted"> · {cur ? 'dilaras manual' : `auto (had ${fmtDate(onTimeDeadline(config, post.date), { weekday: 'short' })})`}</span>
+        <span className="muted"> · {cur ? 'dilaras manual' : `auto (jadual ${fmtDate(onTimeDeadline(config, post), { weekday: 'short' })}${post.planned && post.planned < post.date ? `, dianjak ke ${fmtDate(post.date)}` : ''})`}</span>
       </span>
       {canEdit && (
         <Select value={cur} onChange={(e) => onChange(e.target.value)} aria-label="Laras tepat masa"
