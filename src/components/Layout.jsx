@@ -1,9 +1,10 @@
 // Rangka aplikasi: sidebar (desktop), bar atas + drawer (mobile), carian global, notifikasi dan menu Create.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
+import { usePersistentState } from '../hooks/usePersistentState';
 import {
   LayoutDashboard, CalendarDays, Columns3, Users, Star, Megaphone, Link2, BarChart3, Settings, ListChecks,
-  PackageCheck, Bell, Plus, Menu, X, LogOut, ChevronsLeft, ChevronsRight, BadgeCheck, Target, TrendingUp, Gauge, Send, ClipboardList,
+  PackageCheck, Bell, Plus, Menu, X, LogOut, ChevronsLeft, ChevronsRight, ChevronDown, BadgeCheck, Target, TrendingUp, Gauge, Send, ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -18,27 +19,37 @@ import { useNotifications } from '../hooks/useNotifications';
 import { Avatar, SearchInput } from './ui';
 
 // Menu sisi ikut akses halaman (Tetapan › Akses role). Laporan muncul jika mana-mana tab laporan dibenarkan.
+// Kumpulan menu sisi. Kumpulan boleh disembunyikan (diingat dalam pelayar);
+// kumpulan halaman semasa sentiasa terbuka.
+const NAV_GROUPS = [
+  { key: 'home', label: '' },
+  { key: 'content', label: 'Content' },
+  { key: 'team', label: 'Pasukan & kempen' },
+  { key: 'report', label: 'Laporan & KPI' },
+  { key: 'system', label: '', bottom: true },
+];
+
 function navItems(profile, config, pendingApprovals, postsDue = 0) {
   const ok = allowedPages(profile, config);
   const creatorOnly = isCreatorOnly(profile);
   const items = [
-    ok.has('control') && { to: '/control', label: 'Pusat kawalan', icon: Gauge },
-    ok.has('dashboard') && { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    ok.has('mytasks') && (profile?.staffId || creatorOnly) && { to: '/my-tasks', label: creatorOnly ? 'Hari ini' : 'Tugasan saya', icon: ListChecks },
-    ok.has('calendar') && { to: '/calendar', label: creatorOnly ? 'Kalendar saya' : 'Kalendar', icon: CalendarDays },
-    ok.has('posting') && { to: '/posting', label: 'Jadual pos', icon: Send, badge: postsDue },
-    ok.has('pipeline') && { to: '/pipeline', label: 'Papan kerja', icon: Columns3 },
-    ok.has('approvals') && { to: '/approvals', label: 'Kelulusan', icon: BadgeCheck, badge: pendingApprovals },
-    ok.has('team') && { to: '/team', label: 'Pasukan', icon: Users },
-    ok.has('creators') && { to: '/creators', label: 'Creator', icon: Star },
-    ok.has('campaigns') && { to: '/campaigns', label: 'Kempen', icon: Megaphone },
-    ok.has('deliverables') && { to: '/deliverables', label: 'Deliverable', icon: PackageCheck },
-    ok.has('library') && { to: '/library', label: 'Pustaka link', icon: Link2 },
-    ok.has('kpi') && { to: '/kpi', label: 'KPI', icon: Target },
-    ok.has('performance') && { to: '/performance', label: 'Prestasi content', icon: TrendingUp },
-    ok.has('report_monthly') && { to: '/monthly', label: 'Laporan bulanan', icon: ClipboardList },
-    REPORT_PAGES.some((r) => ok.has(r.key)) && { to: '/analytics', label: 'Laporan', icon: BarChart3 },
-    ok.has('settings') && { to: '/settings', label: 'Tetapan', icon: Settings },
+    ok.has('control') && { group: 'home', to: '/control', label: 'Pusat kawalan', icon: Gauge },
+    ok.has('dashboard') && { group: 'home', to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ok.has('mytasks') && (profile?.staffId || creatorOnly) && { group: 'home', to: '/my-tasks', label: creatorOnly ? 'Hari ini' : 'Tugasan saya', icon: ListChecks },
+    ok.has('calendar') && { group: 'content', to: '/calendar', label: creatorOnly ? 'Kalendar saya' : 'Kalendar', icon: CalendarDays },
+    ok.has('posting') && { group: 'content', to: '/posting', label: 'Jadual pos', icon: Send, badge: postsDue },
+    ok.has('pipeline') && { group: 'content', to: '/pipeline', label: 'Papan kerja', icon: Columns3 },
+    ok.has('approvals') && { group: 'content', to: '/approvals', label: 'Kelulusan', icon: BadgeCheck, badge: pendingApprovals },
+    ok.has('team') && { group: 'team', to: '/team', label: 'Pasukan', icon: Users },
+    ok.has('creators') && { group: 'team', to: '/creators', label: 'Creator', icon: Star },
+    ok.has('campaigns') && { group: 'team', to: '/campaigns', label: 'Kempen', icon: Megaphone },
+    ok.has('deliverables') && { group: 'team', to: '/deliverables', label: 'Deliverable', icon: PackageCheck },
+    ok.has('library') && { group: 'content', to: '/library', label: 'Pustaka link', icon: Link2 },
+    ok.has('kpi') && { group: 'report', to: '/kpi', label: 'KPI', icon: Target },
+    ok.has('performance') && { group: 'report', to: '/performance', label: 'Prestasi content', icon: TrendingUp },
+    ok.has('report_monthly') && { group: 'report', to: '/monthly', label: 'Laporan bulanan', icon: ClipboardList },
+    REPORT_PAGES.some((r) => ok.has(r.key)) && { group: 'report', to: '/analytics', label: 'Laporan', icon: BarChart3 },
+    ok.has('settings') && { group: 'system', to: '/settings', label: 'Tetapan', icon: Settings },
   ];
   return items.filter(Boolean);
 }
@@ -153,6 +164,8 @@ export default function Layout() {
     try { return localStorage.getItem('dibu_sidebar') === 'collapsed'; } catch { return false; }
   });
   const location = useLocation();
+  const [closedGroups, setClosedGroups] = usePersistentState('nav_closed', []);
+  const toggleGroup = (k) => setClosedGroups((x) => (x.includes(k) ? x.filter((y) => y !== k) : [...x, k]));
   // Lencana Kelulusan: video menunggu + idea yang dijadual dalam 14 hari akan datang (perlu lulus segera).
   const pendingApprovals = useMemo(() => {
     const soon = addDays(today(), 14);
@@ -189,12 +202,30 @@ export default function Layout() {
         </span>
       </div>
       <nav aria-label="Menu utama" className="nav">
-        {items.map(({ to, label, icon: Icon, badge }) => (
-          <NavLink key={to} to={to} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} title={badge ? `${label} (${badge})` : label}>
-            <Icon size={18} /><span className="nav-label">{label}</span>
-            {badge > 0 && <span className="nav-badge">{badge > 99 ? '99+' : badge}</span>}
-          </NavLink>
-        ))}
+        {NAV_GROUPS.map((g) => {
+          const list = items.filter((x) => x.group === g.key);
+          if (!list.length) return null;
+          const active = list.some((x) => location.pathname === x.to || location.pathname.startsWith(`${x.to}/`));
+          const open = !g.label || active || !closedGroups.includes(g.key);
+          const badgeSum = list.reduce((n, x) => n + (x.badge || 0), 0);
+          return (
+            <div key={g.key} className={`nav-group${g.bottom ? ' nav-group-bottom' : ''}`}>
+              {g.label && (
+                <button type="button" className="nav-group-head" aria-expanded={open} onClick={() => toggleGroup(g.key)} disabled={active} title={active ? 'Halaman semasa dalam kumpulan ini' : open ? 'Sembunyikan' : 'Tunjuk'}>
+                  <span className="nav-label">{g.label}</span>
+                  {!open && badgeSum > 0 && <span className="nav-badge sm">{badgeSum}</span>}
+                  <ChevronDown size={14} className={`nav-group-caret${open ? '' : ' closed'}`} />
+                </button>
+              )}
+              {open && list.map(({ to, label, icon: Icon, badge }) => (
+                <NavLink key={to} to={to} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} title={badge ? `${label} (${badge})` : label}>
+                  <Icon size={18} /><span className="nav-label">{label}</span>
+                  {badge > 0 && <span className="nav-badge">{badge > 99 ? '99+' : badge}</span>}
+                </NavLink>
+              ))}
+            </div>
+          );
+        })}
       </nav>
       <div className="side-user">
         <Avatar name={profile?.name || profile?.email} size={34} />
