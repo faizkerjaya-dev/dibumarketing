@@ -709,3 +709,17 @@ a.list-row:hover { background: var(--surface-2); color: var(--text); }
 @media (max-width: 700px) { .cal-plat .st, .cal-total { display: none; } .cal-plat { padding: 1px; gap: 3px; font-size: 11px; } }
 .cal-top { display: flex; align-items: center; width: 100%; gap: 6px; }
 .lane-card .top > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Penapis ringkas ---------- */
+.cal-filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; justify-content: space-between; }
+.cf { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cf-search { width: 220px; max-width: 100%; }
+.cf-btn.on { border-color: var(--brand); background: var(--brand-soft); color: var(--link); }
+.cf-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border-radius: 99px; background: var(--brand-soft); font-size: 12.5px; font-weight: 600; }
+.cf-chip button { display: inline-flex; border: 0; background: none; padding: 3px; border-radius: 50%; cursor: pointer; color: var(--text-2); }
+.cf-chip button:hover { background: var(--surface); color: var(--text); }
+.cf-panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: min(560px, calc(100vw - 32px)); padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.14); display: flex; flex-direction: column; gap: 14px; }
+.cf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+.cf-grid .input, .cf-grid select { width: 100%; }
+.cf-extra { padding-top: 12px; border-top: 1px solid var(--divider); }
+@media (max-width: 560px) { .cf-grid { grid-template-columns: 1fr; } .cf-panel { left: 0; right: auto; } .cf-search { width: 100%; flex: 1 1 100%; } }

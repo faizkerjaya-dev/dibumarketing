@@ -78,7 +78,7 @@ export default function Pipeline() {
   };
 
   const list = useMemo(() => {
-    const base = applyFilters(content.filter((c) => (showArchived || (!c.archived && !isArchived(config, c.status))) && (showSlots || !c.isSlot) && inScope(c)), filters);
+    const base = applyFilters(content.filter((c) => (showArchived || (!c.archived && !isArchived(config, c.status))) && (showSlots || !c.isSlot) && inScope(c)), filters, config);
     const due = (c) => nextTask[c.id]?.deadline || c.publishDate || '9999';
     return [...base].sort((a, b) => {
       if (sort === 'priority') return (PRIO_RANK[a.priority] ?? 3) - (PRIO_RANK[b.priority] ?? 3);

@@ -17,7 +17,7 @@ import { findStatus, statusForStage, isArchived, statusList } from '../lib/statu
 import { platformShort } from '../lib/constants';
 import { typeColor, TONE_FILL, OTHER, PALETTE } from '../lib/colors';
 import { today, toISODate, addDays, startOfWeek, monthLabel, fmtDate, parseDate } from '../lib/dates';
-import { PageHeader, Button, Segmented, Loading, Empty, useConfirm, IconButton, Card, Pill, Avatar } from '../components/ui';
+import { PageHeader, Button, Segmented, Loading, Empty, useConfirm, IconButton, Card, Pill, Avatar, Field } from '../components/ui';
 import { ContentStatusPill } from '../components/pills';
 import ContentFilters, { EMPTY_FILTERS, applyFilters } from '../components/ContentFilters';
 import BriefDrawer, { readLast } from '../components/BriefDrawer';
@@ -80,7 +80,8 @@ export default function CalendarPage() {
 
   const live = useMemo(() => content.filter((c) => !c.archived && !isArchived(config, c.status)), [content, config]);
   // Mod Pos: setiap pos silang (IG, FB, Threads…) dipaparkan sebagai item sendiri pada tarikhnya.
-  const allItems = useMemo(() => applyFilters(isShoot ? live : expandCrossPosts(config, live), filters), [live, filters, isShoot, config]);
+  // Platform ditapis melalui tab platform (bukan penapis), jadi penapis platform lama diabaikan di sini.
+  const allItems = useMemo(() => applyFilters(isShoot ? live : expandCrossPosts(config, live), { ...filters, platform: '' }, config), [live, filters, isShoot, config]);
   // Tab platform: tunjuk satu platform sahaja (TikTok, Instagram…).
   const items = useMemo(() => (platTab ? allItems.filter((c) => platformOfItem(config, c) === platTab) : allItems), [allItems, platTab, config]);
   const byDay = useMemo(() => {
@@ -285,15 +286,11 @@ export default function CalendarPage() {
         <Button size="sm" onClick={() => setAnchor(today())}>Hari ini</Button>
         <h2 style={{ margin: '0 6px', fontSize: 17 }}>{title}</h2>
         <div className="grow" />
-        <span className="small muted">Ikut tarikh</span>
-        <Segmented value={dk} onChange={setDk} options={[{ key: 'shootDate', label: 'Shoot' }, { key: 'publishDate', label: 'Pos' }]} />
-        <span className="small muted">Warna ikut</span>
-        <Segmented value={mode} onChange={setMode} options={[{ key: 'status', label: 'Status' }, { key: 'type', label: 'Jenis' }, { key: 'owner', label: 'Pemilik' }, { key: 'account', label: 'Akaun' }]} />
-        <Segmented value={view} onChange={setView} options={[{ key: 'month', label: 'Bulan' }, { key: 'week', label: 'Minggu' }, { key: 'lanes', label: 'Minggu ikut platform' }, { key: 'list', label: 'Senarai' }]} />
+        <Segmented value={dk} onChange={setDk} options={[{ key: 'shootDate', label: 'Tarikh shoot' }, { key: 'publishDate', label: 'Tarikh pos' }]} />
+        <Segmented value={view} onChange={setView} options={[{ key: 'month', label: 'Bulan' }, { key: 'week', label: 'Minggu' }, { key: 'lanes', label: 'Lorong platform' }, { key: 'list', label: 'Senarai' }]} />
       </div>
 
-      {!creatorOnly && <ContentFilters value={filters} onChange={setFilters} />}
-
+      <div className="cal-filterbar">
       <div className="plat-tabs" role="tablist" aria-label="Platform">
         {[{ key: '', label: 'Semua platform' }, ...platformOrder(config).map((p) => ({ key: p, label: p }))].map((t) => {
           // Kira ikut tarikh yang sama dengan sel kalendar (mod Shoot: tarikh shoot, jika tiada tarikh pos).
@@ -310,6 +307,14 @@ export default function CalendarPage() {
             </button>
           );
         })}
+      </div>
+      {!creatorOnly && (
+        <ContentFilters value={filters} onChange={setFilters} hide={['platform']} extra={(view === 'week' || view === 'list') && (
+          <Field label="Warna jalur kad">
+            <Segmented value={mode} onChange={setMode} options={[{ key: 'status', label: 'Status' }, { key: 'type', label: 'Jenis' }, { key: 'owner', label: 'Pemilik' }, { key: 'account', label: 'Akaun' }]} />
+          </Field>
+        )} />
+      )}
       </div>
 
       <div className="split">
@@ -423,11 +428,11 @@ export default function CalendarPage() {
             </Card>
           )}
 
-          <div className="legend">
+          {view === 'week' && <div className="legend">
             <span className="muted">{mode === 'owner' ? 'Pemilik:' : mode === 'type' ? 'Jenis content:' : mode === 'account' ? 'Akaun:' : 'Status:'}</span>
             {legend.map((l) => <span key={l.key}><span className="dot" style={{ background: l.color }} />{l.label}</span>)}
             {mode === 'owner' && legend.length > PALETTE.length && <span className="muted">Staf ke-9 dan seterusnya berwarna kelabu.</span>}
-          </div>
+          </div>}
         </div>
 
         {!creatorOnly && view !== 'lanes' && (
