@@ -27,6 +27,12 @@ service cloud.firestore {
     function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
     function changes(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasAny(keys); }
 
+    // Penanda versi rules. Aplikasi cuba baca meta/rules-v37; jika ditolak, rules dalam Firebase
+    // masih versi lama dan Admin diberi amaran untuk publish semula. Tukar nombor ini setiap kali rules berubah.
+    match /meta/{id} {
+      allow read: if signedIn() && id == 'rules-v37';
+    }
+
     match /users/{uid} {
       allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
       allow write: if isAdmin();

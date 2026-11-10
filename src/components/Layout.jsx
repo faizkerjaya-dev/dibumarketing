@@ -16,6 +16,8 @@ import { stageOf, isArchived } from '../lib/statuses';
 import { allowedPages, REPORT_PAGES } from '../lib/access';
 import { fmtDateTime, today, addDays } from '../lib/dates';
 import { useNotifications } from '../hooks/useNotifications';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { Avatar, SearchInput } from './ui';
 
 // Menu sisi ikut akses halaman (Tetapan › Akses role). Laporan muncul jika mana-mana tab laporan dibenarkan.
@@ -186,6 +188,12 @@ export default function Layout() {
   const items = navItems(profile, config, can(profile, 'content.approve') ? pendingApprovals : 0, postsDue);
   const creatorOnly = isCreatorOnly(profile);
   const dataErrors = Object.entries(errors).filter(([, e]) => e);
+  const denied = dataErrors.some(([, e]) => e?.code === 'permission-denied');
+  // Semak sama ada Firestore rules terkini sudah dipublish (lihat meta/rules-v37 dalam firestore.rules).
+  const [rulesOld, setRulesOld] = useState(false);
+  useEffect(() => {
+    getDoc(doc(db, 'meta', 'rules-v37')).then(() => setRulesOld(false)).catch((e) => setRulesOld(e?.code === 'permission-denied'));
+  }, []);
 
   useEffect(() => setDrawer(false), [location.pathname]);
   useEffect(() => {
@@ -266,7 +274,16 @@ export default function Layout() {
           <div className="hide-mobile"><NotificationBell n={notif} /></div>
           {!creatorOnly && <CreateMenu profile={profile} />}
         </header>
-        {dataErrors.length > 0 && (
+        {(rulesOld || denied) && (
+          <div className="data-warning">
+            <strong>Akses data ditolak oleh Firestore rules.</strong>{' '}
+            {rulesOld ? 'Rules dalam Firebase masih versi lama, jadi role baharu (contoh Social Media Manager) tidak dapat membaca data.' : 'Akaun ini tiada kebenaran untuk sebahagian data.'}{' '}
+            {profile?.roles?.includes('admin')
+              ? <>Admin: buka <a href="https://console.firebase.google.com/project/dibu-marketing/firestore/rules" target="_blank" rel="noreferrer">Firebase › Firestore › Rules</a>, tampal fail <a href="https://raw.githubusercontent.com/faizkerjaya-dev/dibumarketing/main/firestore.rules" target="_blank" rel="noreferrer">firestore.rules terkini</a>, tekan Publish, kemudian refresh.</>
+              : 'Minta Admin publish semula Firestore rules terkini, kemudian refresh.'}
+          </div>
+        )}
+        {dataErrors.length > 0 && !denied && (
           <div className="data-warning">
             Sebahagian data gagal dimuatkan ({dataErrors.map(([n, e]) => `${n}: ${e.code || e.message}`).join(', ')}). {can(profile, 'view.all') ? <Link to="/settings">Semak Tetapan › Semakan sistem</Link> : 'Hubungi Admin.'}
           </div>
