@@ -12,7 +12,14 @@ import { progressOf, videoApprovalOn } from './progress';
 export function accountsOf(config) {
   const saved = config?.social?.accounts;
   if (Array.isArray(saved) && saved.length) return saved.filter((a) => a && a.id && !a.archived);
-  return (config?.platforms || []).map((p) => ({ id: slug(p), platform: p, name: p }));
+  // Belum ada senarai akaun: satu akaun bagi setiap platform dalam Tetapan, dan Threads sentiasa disertakan
+  // (ia platform pos silang yang biasa, tetapi tiada dalam senarai platform lama).
+  const base = [...(config?.platforms || [])];
+  if (!base.some((p) => p.toLowerCase() === 'threads')) {
+    const i = base.findIndex((p) => p.toLowerCase() === 'facebook');
+    base.splice(i >= 0 ? i + 1 : base.length, 0, 'Threads');
+  }
+  return base.map((p) => ({ id: slug(p), platform: p, name: p }));
 }
 
 export function accountById(config, id) {

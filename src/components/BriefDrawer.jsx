@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { X, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { can } from '../lib/permissions';
 import { useData } from '../context/DataContext';
 import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
@@ -143,7 +144,7 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
             {mode === 'full' && <Field label="Masa pos"><Input type="time" value={f.publishTime} onChange={set('publishTime')} /></Field>}
           </div>
 
-          <Field label="Akaun pos utama" group>
+          <Field label="Akaun pos utama" group hint={can(profile, 'social.manage') ? <a href="/posting?akaun=1" target="_blank" rel="noreferrer">Tambah atau ubah akaun (tab baharu)</a> : undefined}>
             <div className="chips">
               {accountsOf(config).map((a) => (
                 <button key={a.id} type="button" className={`chip${f.publishAccount === a.id ? ' on' : ''}`} onClick={() => setF((x) => ({ ...x, publishAccount: a.id, platform: a.platform, crossIds: x.crossIds.filter((id) => id !== a.id) }))}>

@@ -2,7 +2,7 @@
 // Setiap baris = satu pos (pos utama atau pos silang). Klik baris → panel kanan dengan caption, hashtag,
 // link video final dan ruang tampal link post. Status pos dikira dari kemajuan & kelulusan video.
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Check, Copy, ExternalLink, Settings2, Plus, Trash2, CalendarClock, Link2 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -45,7 +45,9 @@ export default function Posting() {
   const [postTime, setPostTime] = useState('');
   const [links, setLinks] = useState({}); // input link bagi senarai peringatan
   const [busy, setBusy] = useState(false);
-  const [accOpen, setAccOpen] = useState(false);
+  const [params, setParams] = useSearchParams();
+  // /posting?akaun=1 membuka terus tetingkap Akaun (pautan dari borang content).
+  const [accOpen, setAccOpen] = useState(() => params.get('akaun') === '1');
   const [drawer, setDrawer] = useState(null);
   const t0 = today();
   const canPost = can(profile, 'content.post') || !!config?.social?.creatorCanPost;
@@ -269,7 +271,7 @@ export default function Posting() {
         )}
       </div>
 
-      <AccountsModal open={accOpen} onClose={() => setAccOpen(false)} />
+      <AccountsModal open={accOpen && can(profile, 'social.manage')} onClose={() => { setAccOpen(false); if (params.get('akaun')) setParams({}, { replace: true }); }} />
       <BriefDrawer open={!!drawer} onClose={() => setDrawer(null)} content={drawer?.content} />
     </div>
   );
