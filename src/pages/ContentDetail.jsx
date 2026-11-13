@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { collection, query, where } from 'firebase/firestore';
-import { ExternalLink, Pencil, Plus, Trash2, Archive, ArchiveRestore, BarChart3, ChevronRight, CalendarDays, Clapperboard, Hash, User, Flag, Megaphone } from 'lucide-react';
+import { ExternalLink, Pencil, Plus, Trash2, Archive, ArchiveRestore, BarChart3, ChevronRight, CalendarDays, Clapperboard, Hash, User, Flag, Megaphone, ChevronDown } from 'lucide-react';
 import { db } from '../firebase';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -11,12 +11,12 @@ import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
 import { useQuery } from '../hooks/useFirestore';
 import { can, isCreatorOnly } from '../lib/permissions';
-import { updateById, deleteContent, updateOwnTask, addLink, removeLink, saveReview, logActivity, viewerUids } from '../lib/db';
+import { updateById, deleteContent, updateOwnTask, addLink, removeLink, saveReview, logActivity, viewerUids, fillSlot } from '../lib/db';
 import { statusList, stageOf, statusForStage, findStatus } from '../lib/statuses';
 import { TASK_ROLES, TASK_STATUSES, REVIEW_OUTCOMES, METRIC_FIELDS, findOpt, slug, num } from '../lib/constants';
 import { fmtDate, fmtDateTime, relDue, today, addDays } from '../lib/dates';
 import { latestByTarget, engagementRate, pct } from '../lib/metrics';
-import { PageHeader, Button, Pill, Avatar, Bar, Field, Input, Select, Textarea, Empty, Loading, ErrorBox, useConfirm } from '../components/ui';
+import { PageHeader, Button, Pill, Avatar, Bar, Field, Input, Select, Textarea, Empty, Loading, ErrorBox, useConfirm, Modal } from '../components/ui';
 import { ContentStatusPill, PriorityPill, TaskStatusPill, ReviewPill } from '../components/pills';
 import TaskModal from '../components/TaskModal';
 import CommentThread from '../components/CommentThread';
@@ -168,11 +168,13 @@ export default function ContentDetail() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const config = useConfig();
-  const { contentById, tasks, ready } = useData();
+  const { contentById, tasks, ready, staff, staffById } = useData();
   const { run } = useToast();
   const [moveTo, moveEl] = useStatusChange();
   const [confirm, confirmEl] = useConfirm();
   const [editOpen, setEditOpen] = useState(false);
+  const [ownerPick, setOwnerPick] = useState(null); // staffId dipilih dalam tetingkap Tukar pemilik
+  const [ownerBusy, setOwnerBusy] = useState(false);
   const [taskModal, setTaskModal] = useState(null);
   const [linkForm, setLinkForm] = useState({ label: '', url: '', category: '' });
 
@@ -195,11 +197,19 @@ export default function ContentDetail() {
   const lateTasks = myTasks.filter((t) => t.status !== 'done' && t.deadline && t.deadline < today()).length;
   const canTouch = canEdit || (!!content.ownerUid && content.ownerUid === profile.uid);
 
-  const chip = (icon, label, onClick) => (
-    <button type="button" className="chip" onClick={onClick} disabled={!onClick} style={!onClick ? { cursor: 'default' } : undefined}>
+  const chip = (icon, label, onClick, title) => (
+    <button type="button" className="chip" onClick={onClick} disabled={!onClick} title={title} style={!onClick ? { cursor: 'default' } : undefined}>
       <span className="row gap-xs">{icon}{label}</span>
     </button>
   );
+
+  // Tukar pemilik terus dari cip nama (tanpa buka borang Edit penuh).
+  const saveOwner = async () => {
+    setOwnerBusy(true);
+    const ok = await run(() => fillSlot(content, { title: content.title, ownerStaffId: ownerPick }, { profile, staffById }).then(() => true), `Pemilik ditukar kepada ${staffById[ownerPick]?.name || ''}`);
+    setOwnerBusy(false);
+    if (ok) setOwnerPick(null);
+  };
 
   const archive = async () => {
     if (!(await confirm('Arkibkan content ini? Rekod dan sejarah kekal, cuma disorok dari kalendar dan papan kerja.', { title: 'Arkibkan content', okLabel: 'Arkibkan' }))) return;
@@ -240,7 +250,7 @@ export default function ContentDetail() {
         {chip(<CalendarDays size={13} />, content.publishDate ? `Pos ${fmtDate(content.publishDate, { weekday: 'short' })}${content.publishTime ? `, ${content.publishTime}` : ''}` : 'Tiada tarikh pos', canEdit ? () => setEditOpen(true) : null)}
         {content.shootDate && chip(<Clapperboard size={13} />, `Shoot ${fmtDate(content.shootDate, { weekday: 'short' })}`, canEdit ? () => setEditOpen(true) : null)}
         {chip(<Hash size={13} />, content.platform || 'Platform?', canEdit ? () => setEditOpen(true) : null)}
-        {chip(<User size={13} />, content.ownerName || 'Tiada pemilik', canEdit ? () => setEditOpen(true) : null)}
+        {chip(<User size={13} />, <>{content.ownerName || 'Tiada pemilik'}{canEdit && <ChevronDown size={13} aria-hidden="true" />}</>, canEdit ? () => setOwnerPick(content.ownerStaffId || '') : null, canEdit ? 'Tukar pemilik content' : undefined)}
         {content.pillar && chip(<Flag size={13} />, content.pillar, canEdit ? () => setEditOpen(true) : null)}
         {content.campaignName && chip(<Megaphone size={13} />, content.campaignName, () => navigate(`/campaigns/${content.campaignId}`))}
         <ContentStatusPill value={content.status} />
@@ -339,6 +349,15 @@ export default function ContentDetail() {
       )}
 
       <BriefDrawer open={editOpen} onClose={() => setEditOpen(false)} content={content} />
+      <Modal open={ownerPick !== null} onClose={() => setOwnerPick(null)} title="Tukar pemilik content" footer={<>
+        <Button onClick={() => setOwnerPick(null)}>Batal</Button>
+        <Button variant="primary" busy={ownerBusy} disabled={!ownerPick || ownerPick === (content.ownerStaffId || '')} onClick={saveOwner}>Simpan</Button>
+      </>}>
+        <p className="small muted"><span className="code-tag">{content.code}</span> {content.title}</p>
+        <Field label="Pemilik baharu" hint="Tugasan yang belum siap milik pemilik lama akan dipindahkan kepada pemilik baharu, dan dia akan dimaklumkan.">
+          <Select value={ownerPick || ''} onChange={(e) => setOwnerPick(e.target.value)} options={staff.filter((x) => x.status !== 'inactive').map((x) => ({ value: x.id, label: x.name }))} placeholder="Pilih staf" aria-label="Pemilik baharu" />
+        </Field>
+      </Modal>
       <TaskModal open={!!taskModal} onClose={() => setTaskModal(null)} task={taskModal?.task} presetContentId={taskModal?.presetContentId} />
       {moveEl}
       {confirmEl}
