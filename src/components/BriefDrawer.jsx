@@ -86,7 +86,10 @@ export default function BriefDrawer({ open, onClose, preset = {}, content = null
         ...(content ? rescheduleFields(config, content, f.publishDate) : {}),
       };
       // Syarat aliran kerja yang sama seperti Papan kerja: contohnya status Terbit perlukan link post.
-      const missing = missingForStatus(config, { ...content, ...payload }, f.status);
+      // Semak hanya bila content baharu atau status DITUKAR. Edit lain (contoh tukar pemilik, tarikh)
+      // tidak patut disekat oleh syarat status yang sedia ada.
+      const statusChanged = !content || f.status !== content.status;
+      const missing = statusChanged ? missingForStatus(config, { ...content, ...payload }, f.status) : (payload.title?.trim() ? [] : ['title']);
       if (missing.length) {
         throw new AppError(`Status “${findStatus(config, f.status).label}” perlukan: ${missing.map((m) => FIELD_LABELS[m]).join(', ')}. Pilih status lain, atau tukar status dari halaman content.`);
       }

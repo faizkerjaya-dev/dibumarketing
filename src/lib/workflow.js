@@ -7,10 +7,8 @@ export function missingForStatus(config, content, statusKey) {
   const missing = [];
   if (!content.title?.trim()) missing.push('title');
   if (stage === 'ready' && !content.publishDate) missing.push('publishDate');
-  if (stage === 'published') {
-    if (!content.publishUrl) missing.push('publishUrl');
-    if (!content.publishedDate) missing.push('publishedDate');
-  }
+  // Link post TIDAK wajib untuk Terbit (boleh ditambah kemudian; sistem beri peringatan).
+  if (stage === 'published' && !content.publishedDate) missing.push('publishedDate');
   if (['review', 'ready', 'published'].includes(stage) && !content.ownerStaffId) missing.push('ownerStaffId');
   return missing;
 }

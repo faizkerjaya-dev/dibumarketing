@@ -150,6 +150,24 @@ export async function fillSlot(content, patch, { profile, staffById }) {
     ownerName: owner?.name || content.ownerName || '',
     ownerUid: owner?.userUid || '',
   }, profile);
+  // Pemilik ditukar: tugasan yang belum siap milik pemilik lama dipindahkan kepada pemilik baharu,
+  // supaya ia muncul dalam "Hari ini" pemilik baharu dan tidak tinggal sebagai lewat pada pemilik lama.
+  const oldId = content.ownerStaffId || '';
+  const newId = patch.ownerStaffId || oldId;
+  if (owner && oldId && newId !== oldId) {
+    const snap = await getDocs(query(collection(db, 'tasks'), where('contentId', '==', content.id)));
+    const move = snap.docs.filter((d) => d.data().staffId === oldId && d.data().status !== 'done');
+    if (move.length) {
+      await commitInChunks(move, (batch, d) => batch.update(doc(db, 'tasks', d.id), {
+        staffId: newId, staffName: owner.name || '', staffUid: owner.userUid || '',
+        history: [...(d.data().history || []), { at: nowIso(), by: by(profile), text: `Dipindahkan kepada ${owner.name} (pemilik content ditukar)` }],
+        updatedAt: serverTimestamp(), updatedBy: by(profile),
+      }));
+      await syncAssignees(content.id, staffById);
+    }
+    if (owner.userUid && owner.userUid !== profile?.uid) await notify(owner.userUid, { title: `Content “${title}” kini milik anda`, body: `${by(profile)} menukar pemilik content ini kepada anda.`, link: `/content/${content.id}` });
+    await logActivity(profile, { type: 'owner_changed', message: `${by(profile)} tukar pemilik “${title}” kepada ${owner.name}`, refType: 'content', refId: content.id });
+  }
 }
 
 // Rancang sebulan: tempah slot kosong mengikut kekerapan posting.
